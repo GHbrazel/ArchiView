@@ -3,6 +3,7 @@
   "displayName": "ArchiView",
   "description": "",
   "version": "0.0.1",
+  "icon": "media/houseWithPillarMagnified.png",
   "engines": {
     "vscode": "^1.107.0"
   },
@@ -17,7 +18,24 @@
         "command": "ArchiView.helloWorld",
         "title": "Hello World"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "archi-view",
+          "title": "ArchiView",
+          "icon": "media/magnifiedHouseIcon.svg"
+        }
+      ]
+    },
+    "views": {
+      "archi-view": [
+        {
+          "id": "archi-view-sidebar",
+          "name": "Archi View"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
