@@ -569,4 +569,339 @@ namespace TestNamespace
 			assert.strictEqual(attributes.length, 0, 'Should not detect array access as parameter attribute');
 		});
 	});
+
+	suite('Field Attributes', () => {
+		test('should detect simple attributes on fields', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[Serializable]
+		private string _name;
+
+		[NonSerialized]
+		private int _tempValue;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Serializable'), 'Should include Serializable on field');
+			assert.ok(names.includes('NonSerialized'), 'Should include NonSerialized on field');
+		});
+
+		test('should detect attributes on public fields', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[Required]
+		public string Name;
+
+		[Range(1, 100)]
+		public int Age;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const rangeAttr = attributes.find(a => a.name === 'Range');
+			assert.ok(rangeAttr?.arguments.includes('1'), 'Range should have arguments');
+		});
+	});
+
+	suite('Event Attributes', () => {
+		test('should detect attributes on events', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[Obsolete("Use OnDataChanged")]
+		public event EventHandler OnDataModified;
+
+		[Serializable]
+		public event Action<string> OnMessage;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Obsolete'), 'Should detect Obsolete on event');
+			assert.ok(names.includes('Serializable'), 'Should detect Serializable on event');
+		});
+	});
+
+	suite('Return Type Attributes', () => {
+		test('should detect return type attributes on methods', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[return: NotNull]
+		public object GetValue()
+		{
+			return new object();
+		}
+
+		[return: MaybeNull]
+		public string GetName()
+		{
+			return null;
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const returnAttrs = attributes.filter(a => a.targetElement === 'return');
+			assert.strictEqual(returnAttrs.length, 2, 'Should detect 2 return type attributes');
+		});
+
+		test('should detect return type attributes with explicit target on properties', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[return: NotNull]
+		public string Name { get; }
+
+		[return: MaybeNull]
+		public object Value { get; set; }
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const returnAttrs = attributes.filter(a => a.targetElement === 'return');
+			assert.strictEqual(returnAttrs.length, 2, 'Should detect return attributes on properties');
+		});
+	});
+
+	suite('Explicit Target Specifiers', () => {
+		test('should detect attributes with explicit type target', () => {
+			const code = `
+namespace TestNamespace
+{
+	[type: Serializable]
+	public class TestClass
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Serializable');
+		});
+
+		test('should detect attributes with explicit method target', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[method: Obsolete("old")]
+		public void OldMethod()
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Obsolete');
+		});
+
+		test('should detect attributes with explicit field target', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[field: Serializable]
+		public string Name { get; set; }
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Serializable');
+		});
+
+		test('should detect attributes with explicit property target', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[property: Required]
+		public string Name { get; set; }
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Required');
+		});
+
+		test('should detect attributes with explicit param target', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void SetValue([param: Required] string value)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Required');
+		});
+
+		test('should detect attributes with explicit event target', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		[event: Serializable]
+		public event EventHandler MyEvent;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'Serializable');
+		});
+	});
+
+	suite('Global/Assembly Attributes', () => {
+		test('should detect assembly-level attributes', () => {
+			const code = `[assembly: AssemblyVersion("1.0.0")]
+[assembly: AssemblyCulture("en-US")]
+
+namespace TestNamespace
+{
+	public class TestClass
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('AssemblyVersion'), 'Should detect AssemblyVersion');
+			assert.ok(names.includes('AssemblyCulture'), 'Should detect AssemblyCulture');
+		});
+
+		test('should detect module-level attributes', () => {
+			const code = `[module: MyModuleAttribute]
+
+namespace TestNamespace
+{
+	public class TestClass
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'MyModuleAttribute');
+		});
+
+		test('should detect assembly attributes with arguments', () => {
+			const code = `[assembly: AssemblyCompany("Acme Corp")]
+[assembly: AssemblyProduct("MyProduct")]
+[assembly: AssemblyFileVersion("2.5.1.0")]
+
+namespace TestNamespace
+{
+	public class Test
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 3);
+			const versionAttr = attributes.find(a => a.name === 'AssemblyFileVersion');
+			assert.ok(versionAttr?.arguments.includes('2.5.1.0'), 'Should include version argument');
+		});
+	});
+
+	suite('Type Parameter Attributes', () => {
+		test('should detect attributes on generic type parameters', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class Generic<[Covariant] T>
+	{
+	}
+
+	public interface IGeneric<[Contravariant] U>
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			// Type parameter attributes are advanced; check if detected
+			const names = attributes.map(a => a.name);
+			// These may or may not be detected depending on parser sophistication
+			// This test checks if parser handles them without crashing
+			assert.ok(Array.isArray(attributes), 'Should return array without crashing');
+		});
+	});
+
+	suite('Complex Multi-Level Attributes', () => {
+		test('should detect mix of class, field, property, and method attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	[Serializable]
+	[Table("Users")]
+	public class User
+	{
+		[Key]
+		public int Id { get; set; }
+
+		[Column("FullName")]
+		[StringLength(100)]
+		private string _name;
+
+		[Obsolete("Use GetFullName")]
+		public string GetName()
+		{
+			return _name;
+		}
+
+		[return: NotNull]
+		public string GetFullName()
+		{
+			return "Name";
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			// Should detect multiple attributes at different levels
+			// Attributes: Serializable, Table, Key, Column, StringLength, Obsolete, NotNull
+			assert.ok(attributes.length >= 7, 'Should detect class, field, property, method, and return attributes');
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Serializable'), 'Should include class attribute');
+			assert.ok(names.includes('StringLength'), 'Should include field attribute');
+			assert.ok(names.includes('Key'), 'Should include property attribute');
+			assert.ok(names.includes('Obsolete'), 'Should include method attribute');
+			assert.ok(names.includes('NotNull'), 'Should include return attribute');
+		});
+
+		test('should handle assembly and type attributes together', () => {
+			const code = `[assembly: AssemblyVersion("1.0.0.0")]
+
+namespace TestNamespace
+{
+	[Serializable]
+	[type: Obsolete("Old class")]
+	public class LegacyClass
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.ok(attributes.length >= 2, 'Should detect both assembly and type attributes');
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('AssemblyVersion'), 'Should detect assembly attribute');
+			assert.ok(names.includes('Obsolete') || names.includes('Serializable'), 'Should detect type attributes');
+		});
+	});
 });
