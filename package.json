@@ -1,12 +1,16 @@
 {
   "name": "archi-view",
-  "description": "",
+  "displayName": "archi-view",
+  "description": "Listing Building Blocks",
+  "publisher": "GHbrazel",
   "version": "0.0.1",
   "icon": "media/houseWithPillarMagnified.png",
+  "repository": "https://github.com/GHbrazel/ArchiView",
   "engines": {
     "vscode": "^1.107.0"
   },
   "categories": [
+    "Visualization", 
     "Other"
   ],
   "activationEvents": [],
@@ -17,8 +21,18 @@
         "command": "ArchiView",
         "title": "Building Blocks",
         "category": "Archi"
+      },
+      {
+        "command": "ArchiView.ReportIssue",
+        "title": "Report Issue",
+        "category": "Archi"
       }
     ],
+    "menus": {
+      "issue/reporter": [
+        {"command": "ArchiView.ReportIssue"}
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
