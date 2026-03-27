@@ -1,6 +1,5 @@
 {
-  "name": "ArchiView",
-  "displayName": "ArchiView",
+  "name": "archi-view",
   "description": "",
   "version": "0.0.1",
   "icon": "media/houseWithPillarMagnified.png",
@@ -15,15 +14,16 @@
   "contributes": {
     "commands": [
       {
-        "command": "ArchiView.helloWorld",
-        "title": "Hello World"
+        "command": "ArchiView",
+        "title": "Building Blocks",
+        "category": "Archi"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "archi-view",
-          "title": "ArchiView",
+          "title": "Archi View",
           "icon": "media/magnifiedHouseIcon.svg"
         }
       ]
@@ -32,6 +32,7 @@
       "archi-view": [
         {
           "id": "archi-view-sidebar",
+          "icon": "media/magnifiedHouseIcon.svg",
           "name": "Archi View"
         }
       ]
