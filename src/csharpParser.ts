@@ -13,7 +13,9 @@ export interface AttributeInfo {
   arguments: string;
   line: number;
   column: number;
-  targetElement?: string; // class, method, property, enum, etc.
+  targetElement?: string; // class, method, property, parameter, enum, etc.
+  parameterType?: string; // For parameter attributes: the type of the parameter
+  parameterName?: string; // For parameter attributes: the name of the parameter
 }
 
 export class CSharpParser {
@@ -29,12 +31,13 @@ export class CSharpParser {
   /**
    * Parses C# source code and extracts all attributes
    * Key distinction: Attributes ALWAYS appear at the start of a line (after whitespace)
-   * Array indexing and similar patterns like array[0], dict[key] appear in the middle of code
+   * Also detects parameter attributes inside method signatures
    */
   static parseAttributes(content: string): AttributeInfo[] {
     const lines = content.split('\n');
     const attributes: AttributeInfo[] = [];
 
+    // First, extract line-based attributes (class, method, property attributes)
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
       
@@ -167,6 +170,93 @@ export class CSharpParser {
       // Skip lines we've already processed
       if (currentLineIdx > lineIndex) {
         lineIndex = currentLineIdx;
+      }
+    }
+
+    // Second, extract parameter attributes inside method signatures
+    const paramAttributes = this.extractParameterAttributes(lines);
+    attributes.push(...paramAttributes);
+
+    return attributes;
+  }
+
+  /**
+   * Extracts attributes applied to method parameters
+   * Pattern: [Attribute] Type ParameterName
+   * Example: [NotNull] object value,
+   */
+  private static extractParameterAttributes(lines: string[]): AttributeInfo[] {
+    const attributes: AttributeInfo[] = [];
+    const content = lines.join('\n');
+
+    // Find method signatures - look for patterns with parentheses
+    // This regex looks for opening parentheses that could contain parameters
+    let currentPos = 0;
+    
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
+      
+      // Look for opening parenthesis (method parameter list)
+      const parenMatch = line.match(/\(/);
+      if (!parenMatch) {
+        continue;
+      }
+
+      // Get the full method signature (may span multiple lines)
+      let fullSignature = line;
+      let endLineIdx = lineIndex;
+      let parenCount = (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
+
+      // Collect lines until we find the closing parenthesis
+      while (parenCount > 0 && endLineIdx + 1 < lines.length) {
+        endLineIdx++;
+        fullSignature += '\n' + lines[endLineIdx];
+        parenCount += (lines[endLineIdx].match(/\(/g) || []).length - (lines[endLineIdx].match(/\)/g) || []).length;
+      }
+
+      // Extract parameter list
+      const startParen = fullSignature.indexOf('(');
+      const endParen = fullSignature.lastIndexOf(')');
+      
+      if (startParen !== -1 && endParen !== -1) {
+        const paramList = fullSignature.substring(startParen + 1, endParen);
+        
+        // Look for parameter attributes: [Attribute] Type Name
+        // Must start with '[' to ensure it's an actual attribute
+        // Type can include: generic parameters <>, nullable marker ?, and namespace dots
+        const paramAttrRegex = /\[\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
+        
+        let match;
+        while ((match = paramAttrRegex.exec(paramList)) !== null) {
+          const attributeName = match[1];
+          const attributeArgs = match[2] || '';
+          const paramType = match[3];
+          const paramName = match[4];
+          
+          // Calculate the actual line where this attribute appears
+          const relativePos = fullSignature.indexOf(match[0]);
+          let attrLineIdx = lineIndex;
+          let tempPos = 0;
+          
+          for (let i = lineIndex; i <= endLineIdx; i++) {
+            tempPos += lines[i].length + 1; // +1 for newline
+            if (tempPos >= relativePos) {
+              attrLineIdx = i;
+              break;
+            }
+          }
+
+          attributes.push({
+            name: this.extractSimpleName(attributeName),
+            fullName: attributeName,
+            arguments: attributeArgs,
+            line: attrLineIdx + 1,
+            column: line.indexOf('[' + attributeName),
+            targetElement: 'parameter',
+            parameterType: paramType,
+            parameterName: paramName
+          });
+        }
       }
     }
 

@@ -422,4 +422,151 @@ namespace TestNamespace
 			assert.ok(attributes[1].line >= 5, 'Second attribute line should be >= 5');
 		});
 	});
+
+	suite('Parameter Attributes', () => {
+		test('should detect simple parameter attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public static void ThrowWhenNull([NotNull] object value)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 1);
+			assert.strictEqual(attributes[0].name, 'NotNull');
+			assert.strictEqual(attributes[0].targetElement, 'parameter');
+			assert.strictEqual(attributes[0].parameterType, 'object');
+			assert.strictEqual(attributes[0].parameterName, 'value');
+		});
+
+		test('should detect multiple parameter attributes on same method', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void ProcessData([NotNull] string message, [Optional] int timeout)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			const notNullAttr = attributes.find(a => a.name === 'NotNull');
+			const optionalAttr = attributes.find(a => a.name === 'Optional');
+			
+			assert.ok(notNullAttr, 'Should detect NotNull attribute');
+			assert.ok(optionalAttr, 'Should detect Optional attribute');
+			assert.strictEqual(notNullAttr?.parameterName, 'message');
+			assert.strictEqual(optionalAttr?.parameterName, 'timeout');
+		});
+
+		test('should detect parameter attributes with arguments', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void ConfigureRoute([FromQuery] string query, [Range(1, 100)] int count)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			
+			const rangeAttr = attributes.find(a => a.name === 'Range');
+			assert.ok(rangeAttr, 'Should detect Range attribute');
+			assert.ok(rangeAttr?.arguments.includes('1'), 'Range should have argument 1');
+			assert.ok(rangeAttr?.arguments.includes('100'), 'Range should have argument 100');
+		});
+
+		test('should detect parameter attributes with custom types', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void HandleRequest([FromQuery] ReportDto report, [NotNull] UserModel user)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			
+			const queryAttr = attributes.find(a => a.name === 'FromQuery');
+			const notNullAttr = attributes.find(a => a.name === 'NotNull');
+			
+			assert.strictEqual(queryAttr?.parameterType, 'ReportDto');
+			assert.strictEqual(queryAttr?.parameterName, 'report');
+			assert.strictEqual(notNullAttr?.parameterType, 'UserModel');
+			assert.strictEqual(notNullAttr?.parameterName, 'user');
+		});
+
+		test('should detect parameter attributes spanning multiple lines', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public static void ThrowWhenNull([NotNull] object? value, string valueExpression = "")
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			// Should detect the NotNull parameter attribute
+			const notNullAttr = attributes.find(a => a.name === 'NotNull' && a.targetElement === 'parameter');
+			assert.ok(notNullAttr, 'Should detect NotNull parameter attribute');
+			assert.strictEqual(notNullAttr?.parameterType, 'object?');
+			assert.strictEqual(notNullAttr?.parameterName, 'value');
+		});
+
+		test('should handle attributes on class and parameter level together', () => {
+			const code = `
+namespace TestNamespace
+{
+	[Serializable]
+	public class TestClass
+	{
+		[Obsolete("old")]
+		public void OldMethod([NotNull] object value)
+		{
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 3, 'Should detect class, method, and parameter attributes');
+			
+			const classAttrs = attributes.filter(a => a.targetElement === 'class');
+			const methodAttrs = attributes.filter(a => a.targetElement === 'method');
+			const paramAttrs = attributes.filter(a => a.targetElement === 'parameter');
+			
+			assert.strictEqual(classAttrs.length, 1, 'Should have 1 class attribute');
+			assert.strictEqual(methodAttrs.length, 1, 'Should have 1 method attribute');
+			assert.strictEqual(paramAttrs.length, 1, 'Should have 1 parameter attribute');
+		});
+
+		test('should NOT detect parameter attributes without proper parameter declaration', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class TestClass
+	{
+		public void Method()
+		{
+			int[] data = { 1, 2, 3 };
+			int value = data[0];
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 0, 'Should not detect array access as parameter attribute');
+		});
+	});
 });
