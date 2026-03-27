@@ -26,11 +26,24 @@
         "command": "ArchiView.ReportIssue",
         "title": "Report Issue",
         "category": "Archi"
+      },
+      {
+        "command": "ArchiView.refresh",
+        "title": "Refresh Attributes",
+        "category": "Archi",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
       "issue/reporter": [
         {"command": "ArchiView.ReportIssue"}
+      ],
+      "view/title": [
+        {
+          "command": "ArchiView.refresh",
+          "when": "view == archi-view-sidebar",
+          "group": "navigation"
+        }
       ]
     },
     "viewsContainers": {
