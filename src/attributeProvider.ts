@@ -130,7 +130,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   private extractNamespacePart(fullNamespace: string | null): string {
-    if (!fullNamespace) return 'No Namespace';
+    if (!fullNamespace) {return 'No Namespace';}
     // Extract the second part of the namespace (e.g., "Models" from "CsAttributeExampleProject.Models")
     const parts = fullNamespace.split('.');
     return parts[0];
