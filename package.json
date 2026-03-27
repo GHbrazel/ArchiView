@@ -32,6 +32,12 @@
         "title": "Refresh Attributes",
         "category": "Archi",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "ArchiView.toggleNamespaceHierarchy",
+        "title": "Toggle Namespace Hierarchy",
+        "category": "Archi",
+        "icon": "$(settings)"
       }
     ],
     "menus": {
@@ -39,6 +45,11 @@
         {"command": "ArchiView.ReportIssue"}
       ],
       "view/title": [
+        {
+          "command": "ArchiView.toggleNamespaceHierarchy",
+          "when": "view == archi-view-sidebar",
+          "group": "navigation"
+        },
         {
           "command": "ArchiView.refresh",
           "when": "view == archi-view-sidebar",
@@ -63,6 +74,16 @@
           "name": "Archi View"
         }
       ]
+    },
+    "configuration": {
+      "title": "ArchiView",
+      "properties": {
+        "ArchiView.showNamespaceHierarchy": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show attributes organized by namespace hierarchy (true) or flat file list (false)"
+        }
+      }
     }
   },
   "scripts": {

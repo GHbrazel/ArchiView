@@ -18,6 +18,15 @@ export interface AttributeInfo {
 
 export class CSharpParser {
   /**
+   * Extracts namespace from C# source code
+   */
+  static extractNamespace(content: string): string | null {
+    const namespaceRegex = /^\s*namespace\s+([\w\.]+)\s*[{;]/m;
+    const match = content.match(namespaceRegex);
+    return match ? match[1] : null;
+  }
+
+  /**
    * Parses C# source code and extracts all attributes
    */
   static parseAttributes(content: string): AttributeInfo[] {
