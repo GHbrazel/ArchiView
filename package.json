@@ -9,6 +9,18 @@
   "engines": {
     "vscode": "^1.107.0"
   },
+  "keywords": [
+    "annotation",
+    "csharp",
+    "metadata",
+    "attributes",
+    "code analysis",
+    "static analysis",
+    "reflection",
+    "developer tools",
+    "code navigation",
+    "productivity"
+  ],
   "categories": [
     "Visualization",
     "Other"
