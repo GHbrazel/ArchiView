@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CSharpParser, AttributeInfo, InterfaceMethodSignature } from './csharpParser';
+import { FilterManager } from './filterManager';
 
 export class AttributeItem extends vscode.TreeItem {
   constructor(
@@ -37,8 +38,10 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
 
   private attributeMap: Map<string, AttributeLocation[]> = new Map();
   private showNamespaceHierarchy: boolean = true;
+  private filterManager: FilterManager;
 
-  constructor() {
+  constructor(filterManager?: FilterManager) {
+    this.filterManager = filterManager || new FilterManager();
     this.loadSettings();
     this.refresh();
     this.setupWatchers();
@@ -136,6 +139,25 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     return parts[0];
   }
 
+  /**
+   * Get all attribute names in the workspace
+   */
+  getAllAttributeNames(): Set<string> {
+    return new Set(this.attributeMap.keys());
+  }
+
+  /**
+   * Check if an attribute should be shown based on current filters
+   */
+  private shouldShowAttribute(attributeName: string): boolean {
+    // If no filters selected, show all
+    if (!this.filterManager.hasFilters()) {
+      return true;
+    }
+    // If filters are active, only show selected attributes
+    return this.filterManager.isAttributeSelected(attributeName);
+  }
+
   getTreeItem(element: AttributeItem): vscode.TreeItem {
     return element;
   }
@@ -147,8 +169,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
         // Hierarchy mode: show namespaces first
         const namespaceMap = new Map<string, AttributeLocation[]>();
         
-        // Collect all locations by namespace
-        for (const locations of this.attributeMap.values()) {
+        // Collect all locations by namespace, respecting filters
+        for (const [attrName, locations] of this.attributeMap.entries()) {
+          // Only include if attribute passes filter
+          if (!this.shouldShowAttribute(attrName)) {
+            continue;
+          }
+          
           for (const location of locations) {
             const ns = this.extractNamespacePart(location.namespace);
             if (!namespaceMap.has(ns)) {
@@ -176,6 +203,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       } else {
         // Flat mode: show attributes directly
         return Array.from(this.attributeMap.keys())
+          .filter(attributeName => this.shouldShowAttribute(attributeName))
           .sort()
           .map(
             (attributeName) => {
@@ -197,8 +225,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       const ns = element.context.replace('namespace|', '');
       const attributeMap = new Map<string, AttributeLocation[]>();
 
-      // Collect attributes for this namespace
+      // Collect attributes for this namespace, respecting filters
       for (const [attrName, locations] of this.attributeMap.entries()) {
+        // Only include if attribute passes filter
+        if (!this.shouldShowAttribute(attrName)) {
+          continue;
+        }
+        
         const nsLocations = locations.filter(loc => this.extractNamespacePart(loc.namespace) === ns);
         if (nsLocations.length > 0) {
           attributeMap.set(attrName, nsLocations);

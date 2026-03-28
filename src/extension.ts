@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { AttributeProvider } from './attributeProvider';
+import { FilterManager } from './filterManager';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -10,8 +11,11 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "ArchiView" is now active!');
 
+	// Create filter manager
+	const filterManager = new FilterManager();
+
 	// Create and register the tree data provider for C# attributes
-	const attributeProvider = new AttributeProvider();
+	const attributeProvider = new AttributeProvider(filterManager);
 	vscode.window.registerTreeDataProvider('archi-view-sidebar', attributeProvider);
 
 	// Register refresh command
@@ -52,7 +56,40 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.executeCommand('archi-view-sidebar.focus');
 	});
 
-	context.subscriptions.push(disposable, refreshCommand, toggleCommand);
+	// Register filter command to show filter UI
+	const filterCommand = vscode.commands.registerCommand('ArchiView.showFilter', async () => {
+		const allAttributes = attributeProvider.getAllAttributeNames();
+		const currentFilters = filterManager.getSelectedAttributes();
+		
+		// Show quick pick with checkboxes for attribute filtering
+		const options = Array.from(allAttributes).map(attr => ({
+			label: attr,
+			picked: currentFilters.has(attr),
+			attribute: attr
+		}));
+
+		const selected = await vscode.window.showQuickPick(options, {
+			placeHolder: 'Select attributes to show (none = show all)',
+			canPickMany: true,
+			matchOnDescription: true,
+			matchOnDetail: true
+		});
+
+		if (selected !== undefined) {
+			const selectedAttrs = selected.map(s => s.attribute);
+			filterManager.setSelectedAttributes(selectedAttrs);
+			attributeProvider.refresh();
+		}
+	});
+
+	context.subscriptions.push(disposable, refreshCommand, toggleCommand, filterCommand);
+	
+	// Listen for filter changes and refresh tree
+	context.subscriptions.push(
+		filterManager.onFilterChanged(() => {
+			attributeProvider.refresh();
+		})
+	);
 }
 
 // This method is called when your extension is deactivated

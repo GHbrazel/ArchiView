@@ -38,6 +38,12 @@
         "title": "Toggle Namespace Hierarchy",
         "category": "Archi",
         "icon": "$(settings)"
+      },
+      {
+        "command": "ArchiView.showFilter",
+        "title": "Filter Attributes",
+        "category": "Archi",
+        "icon": "$(filter)"
       }
     ],
     "menus": {
@@ -54,6 +60,11 @@
         },
         {
           "command": "ArchiView.refresh",
+          "when": "view == archi-view-sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "ArchiView.showFilter",
           "when": "view == archi-view-sidebar",
           "group": "navigation"
         }
