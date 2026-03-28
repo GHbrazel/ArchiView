@@ -1308,4 +1308,208 @@ namespace TestNamespace
 			assert.strictEqual(rangeAttr?.targetName, 'userId', 'Range should target userId parameter');
 		});
 	});
+
+	suite('Interface Method Signature Extraction', () => {
+		test('should extract method signatures from simple interface', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IUserRepository
+	{
+		User GetUser(int id);
+		void CreateUser(User user);
+		bool DeleteUser(int id);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IUserRepository');
+			assert.strictEqual(signatures.length, 3, 'Should extract 3 method signatures');
+			assert.ok(signatures.some(s => s.signature.includes('GetUser')), 'Should include GetUser method');
+			assert.ok(signatures.some(s => s.signature.includes('CreateUser')), 'Should include CreateUser method');
+			assert.ok(signatures.some(s => s.signature.includes('DeleteUser')), 'Should include DeleteUser method');
+			assert.ok(signatures.every(s => typeof s.line === 'number' && s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should extract method signatures with generic types', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IRepository<T>
+	{
+		T GetById(int id);
+		List<T> GetAll();
+		Task<T> GetByIdAsync(int id);
+		IEnumerable<T> SearchBy(Func<T, bool> predicate);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IRepository');
+			assert.ok(signatures.length >= 4, 'Should extract at least 4 method signatures');
+			assert.ok(signatures.some(s => s.signature.includes('GetById')), 'Should include GetById');
+			assert.ok(signatures.some(s => s.signature.includes('GetAll')), 'Should include GetAll');
+			assert.ok(signatures.some(s => s.signature.includes('GetByIdAsync')), 'Should include GetByIdAsync');
+			assert.ok(signatures.some(s => s.signature.includes('SearchBy')), 'Should include SearchBy');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have positive line numbers');
+		});
+
+		test('should extract method signatures with nullable return types', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IArticleService
+	{
+		Article? GetArticle(int id);
+		Article[] GetAllArticles();
+		List<Article>? SearchArticles(string keyword);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IArticleService');
+			assert.ok(signatures.length >= 3, 'Should extract method signatures with nullable types');
+			assert.ok(signatures.some(s => s.signature.includes('Article?')), 'Should include nullable return type');
+			assert.ok(signatures.some(s => s.signature.includes('Article[]')), 'Should include array return type');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should extract property signatures from interface', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IEntity
+	{
+		int Id { get; set; }
+		string Name { get; }
+		DateTime CreatedAt { get; set; }
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IEntity');
+			assert.ok(signatures.length >= 3, 'Should extract property signatures');
+			assert.ok(signatures.some(s => s.signature.includes('Id')), 'Should include Id property');
+			assert.ok(signatures.some(s => s.signature.includes('Name')), 'Should include Name property');
+			assert.ok(signatures.some(s => s.signature.includes('CreatedAt')), 'Should include CreatedAt property');
+			assert.ok(signatures.every(s => s.line > 0), 'All properties should have line numbers');
+		});
+
+		test('should skip attribute lines when extracting signatures', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface ILoggingService
+	{
+		[Obsolete("Use LogAsync instead")]
+		void Log(string message);
+
+		[return: NotNull]
+		Task LogAsync(string message);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'ILoggingService');
+			assert.ok(signatures.length >= 2, 'Should skip attributes and extract methods');
+			assert.ok(signatures.some(s => s.signature.includes('Log')), 'Should include Log method');
+			assert.ok(signatures.some(s => s.signature.includes('LogAsync')), 'Should include LogAsync method');
+			// Verify attributes are not in the signature
+			assert.ok(!signatures.some(s => s.signature.includes('[Obsolete')), 'Should not include attribute in signature');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should extract method with complex parameters', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IDataService
+	{
+		IQueryable<User> GetUsers(Expression<Func<User, bool>> predicate);
+		Task<PagedResult<Product>> GetProductsAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+		void ProcessItems(params object[] items);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IDataService');
+			assert.ok(signatures.length >= 3, 'Should extract methods with complex parameters');
+			assert.ok(signatures.some(s => s.signature.includes('Expression')), 'Should handle Expression parameters');
+			assert.ok(signatures.some(s => s.signature.includes('CancellationToken')), 'Should handle CancellationToken');
+			assert.ok(signatures.some(s => s.signature.includes('params')), 'Should handle params keyword');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should detect interface with attributes and extract methods', () => {
+			const code = `
+namespace TestNamespace
+{
+	[ServiceContract]
+	[Serializable]
+	public interface IPaymentService
+	{
+		[OperationContract]
+		bool ProcessPayment(decimal amount);
+
+		[OperationContract]
+		Task<PaymentResult> ProcessPaymentAsync(decimal amount);
+	}
+}`;
+			// Test that attributes are properly detected
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('ServiceContract'), 'Should detect ServiceContract attribute');
+			assert.ok(names.includes('Serializable'), 'Should detect Serializable attribute');
+			assert.ok(names.includes('OperationContract'), 'Should detect OperationContract attribute');
+			
+			// Test that method signatures are extracted despite attributes
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IPaymentService');
+			assert.ok(signatures.length >= 2, 'Should extract methods ignoring attributes');
+			assert.ok(signatures.some(s => s.signature.includes('ProcessPayment')), 'Should include ProcessPayment');
+			assert.ok(signatures.some(s => s.signature.includes('ProcessPaymentAsync')), 'Should include ProcessPaymentAsync');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should handle interface with async methods and Task types', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IAsyncRepository<T>
+	{
+		Task<T> GetByIdAsync(int id);
+		Task<IEnumerable<T>> GetAllAsync();
+		Task InsertAsync(T entity);
+		Task<bool> UpdateAsync(T entity);
+		Task<bool> DeleteAsync(int id);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IAsyncRepository');
+			assert.ok(signatures.length >= 5, 'Should extract async methods');
+			assert.ok(signatures.every(s => s.signature.includes('Task')), 'All methods should be async/Task-based');
+			assert.ok(signatures.some(s => s.signature.includes('GetByIdAsync')), 'Should include GetByIdAsync');
+			assert.ok(signatures.some(s => s.signature.includes('InsertAsync')), 'Should include InsertAsync');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should handle interface with event declarations', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface INotificationService
+	{
+		event EventHandler OnNotificationReceived;
+		event EventHandler<NotificationEventArgs> OnError;
+		
+		void Subscribe(string topic);
+		void Unsubscribe(string topic);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INotificationService');
+			// Events may or may not be included depending on regex, but methods should be
+			assert.ok(signatures.some(s => s.signature.includes('Subscribe')), 'Should include Subscribe method');
+			assert.ok(signatures.some(s => s.signature.includes('Unsubscribe')), 'Should include Unsubscribe method');
+			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		});
+
+		test('should return empty array for non-existent interface', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IExisting
+	{
+		void DoSomething();
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INonExistent');
+			assert.strictEqual(signatures.length, 0, 'Should return empty array for non-existent interface');
+		});
+	});
 });

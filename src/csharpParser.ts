@@ -20,6 +20,11 @@ export interface AttributeInfo {
   parameterName?: string; // For parameter attributes: the name of the parameter
 }
 
+export interface InterfaceMethodSignature {
+  signature: string;
+  line: number;
+}
+
 export class CSharpParser {
   /**
    * Extracts namespace from C# source code
@@ -508,5 +513,111 @@ export class CSharpParser {
       unique.add(attr.name);
     }
     return Array.from(unique).sort();
+  }
+
+  /**
+   * Extracts method signatures from an interface with their line numbers
+   * Used for display purposes when an attribute targets an interface
+   */
+  static extractInterfaceMethodSignatures(content: string, interfaceName: string): InterfaceMethodSignature[] {
+    const methodSignatures: InterfaceMethodSignature[] = [];
+    const lines = content.split('\n');
+    
+    // Find the interface declaration first
+    let interfaceLineIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      // Match: "interface InterfaceName" with opening brace
+      if (trimmed.match(new RegExp(`\\binterface\\s+${interfaceName}\\b`))) {
+        interfaceLineIdx = i;
+        break;
+      }
+    }
+    
+    if (interfaceLineIdx === -1) {
+      return []; // Interface not found
+    }
+    
+    // Count braces to find interface bounds
+    let braceCount = 0;
+    let inInterface = false;
+    
+    for (let i = interfaceLineIdx; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      
+      // Count braces
+      braceCount += (line.match(/{/g) || []).length;
+      braceCount -= (line.match(/}/g) || []).length;
+      
+      // Mark that we're in the interface once we hit the opening brace
+      if (braceCount > 0) {
+        inInterface = true;
+      }
+      
+      // Exit the interface when braces close
+      if (inInterface && braceCount === 0) {
+        break;
+      }
+      
+      // Skip lines before we find the opening brace
+      if (!inInterface) {
+        continue;
+      }
+      
+      // Skip the interface declaration line, empty lines, comments, attributes
+      if (i === interfaceLineIdx || !trimmed || trimmed.startsWith('//') || trimmed.startsWith('[') || trimmed.startsWith('}')) {
+        continue;
+      }
+      
+      // Match method or property signatures
+      // This includes: return_type method_name(...) or type property_name { ... }
+      // Allow for: public, async, generics, arrays, nullable types
+      
+      // Match anything that looks like a member declaration
+      // Pattern: optional modifiers + return type + name + either () or {}
+      const memberMatch = trimmed.match(/^(public\s+)?(async\s+)?([\w<>\[\],\?\s]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]/);
+      
+      if (memberMatch) {
+        // Extract the signature up to the first ( or { or ;
+        let signature = trimmed;
+        
+        // Find where the actual declaration ends
+        const openParen = trimmed.indexOf('(');
+        const openBrace = trimmed.indexOf('{');
+        const semicolon = trimmed.indexOf(';');
+        
+        // Get the earliest position
+        let endPos = trimmed.length;
+        if (openParen !== -1) {endPos = Math.min(endPos, openParen);}
+        if (openBrace !== -1) {endPos = Math.min(endPos, openBrace);}
+        if (semicolon !== -1) {endPos = Math.min(endPos, semicolon);}
+        
+        // For properties with getters/setters on same line, capture the full line
+        if (openBrace !== -1 && trimmed.includes('}')) {
+          endPos = trimmed.length;
+        } else if (openParen !== -1) {
+          // For methods, capture up to (and including) closing paren
+          let parenCount = 1;
+          let endParen = trimmed.indexOf(')', openParen);
+          if (endParen !== -1) {
+            endPos = endParen + 1;
+          }
+        }
+        
+        signature = trimmed.substring(0, endPos).trim();
+        
+        // Only add if it's a valid signature and not a duplicate
+        if (signature && !methodSignatures.some(m => m.signature === signature) && signature.length > 5) {
+          // Line numbers are 1-based for VS Code
+          methodSignatures.push({
+            signature,
+            line: i + 1
+          });
+        }
+      }
+    }
+    
+    return methodSignatures;
   }
 }

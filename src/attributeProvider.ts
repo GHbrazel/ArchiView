@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CSharpParser, AttributeInfo } from './csharpParser';
+import { CSharpParser, AttributeInfo, InterfaceMethodSignature } from './csharpParser';
 
 export class AttributeItem extends vscode.TreeItem {
   constructor(
@@ -289,6 +289,35 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
         );
     }
 
+    // Special case FIRST: Show method signatures for interface attributes
+    // This is when clicking expand on an interface attribute leaf node
+    // Must check this BEFORE the general file-level attribute handler since they have similar conditions
+    if (element.file && element.label && (element.label.includes("interface '") || element.label?.startsWith("interface '"))) {
+      // Extract interface name from the label (e.g., "interface 'IUserRepository'" -> "IUserRepository")
+      const interfaceMatch = element.label.match(/interface\s+'([^']+)'/);
+      if (interfaceMatch) {
+        const interfaceName = interfaceMatch[1];
+        
+        try {
+          const content = fs.readFileSync(element.file, 'utf-8');
+          const methodSignatures = CSharpParser.extractInterfaceMethodSignatures(content, interfaceName);
+          
+          return methodSignatures.map((sig: InterfaceMethodSignature) => {
+            return new AttributeItem(
+              sig.signature,
+              vscode.TreeItemCollapsibleState.None,
+              element.file,
+              sig.line,  // Pass line number for navigation
+              `Interface member: ${sig.signature}`
+            );
+          });
+        } catch (error) {
+          console.error(`Error extracting interface methods from ${element.file}:`, error);
+          return [];
+        }
+      }
+    }
+
     // Level 4 in hierarchy mode: show attribute occurrences in a file
     // Level 3 in flat mode: show attribute occurrences in a file
     if (element.file && element.context && !element.context.includes('|')) {
@@ -340,9 +369,12 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
           }
           tooltipText += `\nLine: ${attr.line}`;
 
+          // Interface attributes are collapsible to show method signatures
+          const isCollapsible = attr.targetElement === 'interface' && attr.targetName;
+          
           return new AttributeItem(
             label,
-            vscode.TreeItemCollapsibleState.None,
+            isCollapsible ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
             element.file,
             attr.line,
             tooltipText
