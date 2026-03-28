@@ -75,7 +75,7 @@
         {
           "id": "archi-view",
           "title": "Archi View",
-          "icon": "media/magnifiedHouseIcon.svg"
+          "icon": "$(telescope)"
         }
       ]
     },
@@ -83,7 +83,7 @@
       "archi-view": [
         {
           "id": "archi-view-sidebar",
-          "icon": "media/magnifiedHouseIcon.svg",
+          "icon": "$(telescope)",
           "name": "Archi View"
         }
       ]
