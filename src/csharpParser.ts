@@ -15,6 +15,7 @@ export interface AttributeInfo {
   column: number;
   targetElement?: string; // class, method, property, parameter, enum, return, event, field, etc.
   targetSpecifier?: string; // Explicit target: type, method, field, property, param, event, return, assembly, module
+  targetName?: string; // The name of the targeted element (e.g., "UserId" for property, "CreateProduct" for method)
   parameterType?: string; // For parameter attributes: the type of the parameter
   parameterName?: string; // For parameter attributes: the name of the parameter
 }
@@ -78,6 +79,9 @@ export class CSharpParser {
           if (nextLine[i] === ']') {bracketCount--;}
         }
       }
+
+      // Find the target name once for all stacked attributes
+      const targetName = this.findTargetName(lines, currentLineIdx);
 
       // Extract all stacked attributes from the beginning
       let currentPos = 0;
@@ -190,7 +194,8 @@ export class CSharpParser {
             line: lineIndex + 1,
             column: currentPos,
             targetElement: targetElement,
-            targetSpecifier: targetSpecifier || undefined
+            targetSpecifier: targetSpecifier || undefined,
+            targetName: targetName
           });
 
           currentPos = attributeEnd;
@@ -292,6 +297,7 @@ export class CSharpParser {
             line: attrLineIdx + 1,
             column: line.indexOf('[' + attributeName),
             targetElement: 'parameter',
+            targetName: paramName,
             parameterType: paramType,
             parameterName: paramName
           });
@@ -335,6 +341,7 @@ export class CSharpParser {
             column: line.indexOf('['),
             targetElement: targetSpecifier === 'param' ? 'parameter' : 'return',
             targetSpecifier: targetSpecifier,
+            targetName: targetSpecifier === 'param' ? paramName : undefined,
             parameterType: paramType,
             parameterName: paramName
           });
@@ -415,6 +422,62 @@ export class CSharpParser {
     }
 
     return 'unknown';
+  }
+
+  /**
+   * Extract the name of the target element (property name, method name, class name, etc.)
+   */
+  private static findTargetName(lines: string[], currentLineIndex: number): string | undefined {
+    // Look at the next few non-empty lines for the target element name
+    for (let i = currentLineIndex + 1; i < Math.min(currentLineIndex + 10, lines.length); i++) {
+      const line = lines[i].trim();
+
+      if (line === '') {
+        continue;
+      }
+
+      // Skip attribute lines (they start with '[')
+      if (line.startsWith('[')) {
+        continue;
+      }
+
+      // Class/Interface/Struct/Enum/Delegate - extract the name
+      const typeMatch = line.match(/^(public |private |protected |internal )?(partial |abstract |sealed )?(class|interface|struct|enum|delegate)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+      if (typeMatch) {
+        return typeMatch[4]; // Return the type name
+      }
+
+      // Event - extract the name (handles generic types like EventHandler<EventArgs>)
+      // Pattern: event Type EventName or event Type<Generic> EventName
+      const eventMatch = line.match(/event\s+[\w<>,\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[;={]/);
+      if (eventMatch) {
+        return eventMatch[1];
+      }
+
+      // Property/Field - handle various patterns
+      // Matches: access_modifier type name { or ; or = 
+      // Handles: generic types, nullable, arrays, with/without initialization
+      // Pattern: modifier+ (optional static/readonly) type identifier (followed by { ; or =)
+      const propMatch = line.match(/(?:public|private|protected|internal)\s+(?:static\s+)?(?:readonly\s+)?[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\{;=]/);
+      if (propMatch) {
+        return propMatch[1];
+      }
+
+      // Method - extract the method name (look for identifier before opening paren or bracket)
+      // Pattern: access_modifier return_type methodName (or methodName[)
+      // Handles nullable types (?) and complex return types (arrays, generics)
+      const methodMatch = line.match(/^(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(\[]/);
+      if (methodMatch) {
+        return methodMatch[1];
+      }
+
+      // If we found a declaration line but couldn't parse the name, stop searching
+      if (line.includes('{') || line.includes('(') || line.includes(';')) {
+        break;
+      }
+    }
+
+    return undefined;
   }
 
   /**

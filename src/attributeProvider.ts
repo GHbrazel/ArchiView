@@ -303,21 +303,89 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       return fileLocations.map(
         (location) => {
           const attr = location.attribute;
-          const label = attr.arguments
-            ? `${attr.name}(${attr.arguments})`
-            : attr.name;
           
+          // Build a descriptive label showing what the attribute targets (without repeating attribute name)
+          let label: string;
+          
+          if (attr.targetElement === 'parameter' && attr.parameterName) {
+            // For parameters, show: parameter 'value'
+            label = `parameter '${attr.parameterName}'`;
+          } else if (attr.targetElement === 'return') {
+            // For return types, show: return value
+            label = `return value`;
+          } else if (attr.targetName && attr.targetElement && attr.targetElement !== 'unknown') {
+            // For other elements with names, show: property 'UserId'
+            label = `${attr.targetElement} '${attr.targetName}'`;
+          } else if (attr.targetElement && attr.targetElement !== 'unknown') {
+            // For elements without extracted names, show: property
+            label = attr.targetElement;
+          } else {
+            // Fallback to showing the attribute with arguments
+            label = attr.arguments
+              ? `${attr.name}(${attr.arguments})`
+              : attr.name;
+          }
+          
+          // Build comprehensive tooltip with attribute arguments and target info
+          let tooltipText = `Attribute: ${attr.fullName}`;
+          if (attr.arguments) {
+            tooltipText += `\nArguments: ${attr.arguments}`;
+          }
+          tooltipText += `\nTarget: ${this.getTargetDescription(attr)}`;
+          if (attr.targetName) {
+            tooltipText += `\nName: ${attr.targetName}`;
+          }
+          if (attr.targetElement === 'parameter') {
+            tooltipText += `\nParameter: ${attr.parameterType} ${attr.parameterName}`;
+          }
+          tooltipText += `\nLine: ${attr.line}`;
+
           return new AttributeItem(
             label,
             vscode.TreeItemCollapsibleState.None,
             element.file,
             attr.line,
-            `${attr.targetElement} at line ${attr.line}`
+            tooltipText
           );
         }
       );
     }
 
     return [];
+  }
+
+  private getTargetDescription(attr: AttributeInfo): string {
+    switch (attr.targetElement) {
+      case 'class':
+        return 'class';
+      case 'interface':
+        return 'interface';
+      case 'struct':
+        return 'struct';
+      case 'enum':
+        return 'enum';
+      case 'property':
+        return 'property';
+      case 'field':
+        return 'field';
+      case 'method':
+        return 'method';
+      case 'parameter':
+        return attr.parameterName ? `parameter "${attr.parameterName}"` : 'parameter';
+      case 'event':
+        return 'event';
+      case 'return':
+        return 'return value';
+      case 'delegate':
+        return 'delegate';
+      case 'assembly':
+        return 'assembly';
+      case 'module':
+        return 'module';
+      case 'typevar':
+        return 'type parameter';
+      default:
+        return attr.targetElement || 'unknown';
+    }
   }
 }

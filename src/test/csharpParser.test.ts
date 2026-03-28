@@ -38,6 +38,28 @@ namespace TestNamespace
 			assert.ok(names.includes('Obsolete'), 'Should include Obsolete');
 		});
 
+		test('should extract target names for all stacked attributes on same element', () => {
+			const code = `
+namespace TestNamespace
+{
+	[Serializable]
+	[Table("Users")]
+	public class User
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.strictEqual(attributes.length, 2);
+			// Both attributes should have targetName 'User'
+			const serializableAttr = attributes.find(a => a.name === 'Serializable');
+			const tableAttr = attributes.find(a => a.name === 'Table');
+			
+			assert.ok(serializableAttr, 'Should find Serializable attribute');
+			assert.ok(tableAttr, 'Should find Table attribute');
+			assert.strictEqual(serializableAttr?.targetName, 'User', 'Serializable should have targetName "User"');
+			assert.strictEqual(tableAttr?.targetName, 'User', 'Table should have targetName "User"');
+		});
+
 		test('should detect attributes on properties', () => {
 			const code = `
 namespace TestNamespace
@@ -902,6 +924,388 @@ namespace TestNamespace
 			const names = attributes.map(a => a.name);
 			assert.ok(names.includes('AssemblyVersion'), 'Should detect assembly attribute');
 			assert.ok(names.includes('Obsolete') || names.includes('Serializable'), 'Should detect type attributes');
+		});
+
+		test('should handle method with stacked attributes, return attribute, and parameter attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class UserService
+	{
+		[Cacheable(600)]
+		[Loggable("Info")]
+		[return: NotNull]
+		public User GetUser([Range(1, int.MaxValue)] int id)
+		{
+			return new User { Id = id, Username = "testuser", Email = "test@example.com" };
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			
+			// Should detect: Cacheable, Loggable, NotNull (return), Range (parameter)
+			assert.ok(attributes.length >= 4, `Expected at least 4 attributes, got ${attributes.length}`);
+			
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Cacheable'), 'Should include Cacheable method attribute');
+			assert.ok(names.includes('Loggable'), 'Should include Loggable method attribute');
+			assert.ok(names.includes('NotNull'), 'Should include NotNull return attribute');
+			assert.ok(names.includes('Range'), 'Should include Range parameter attribute');
+			
+			// Verify target elements
+			const cacheableAttr = attributes.find(a => a.name === 'Cacheable');
+			assert.strictEqual(cacheableAttr?.targetElement, 'method', 'Cacheable should target method');
+			assert.strictEqual(cacheableAttr?.targetName, 'GetUser', 'Cacheable should have targetName GetUser');
+			
+			const loggableAttr = attributes.find(a => a.name === 'Loggable');
+			assert.strictEqual(loggableAttr?.targetElement, 'method', 'Loggable should target method');
+			assert.strictEqual(loggableAttr?.targetName, 'GetUser', 'Loggable should have targetName GetUser');
+			
+			const notNullAttr = attributes.find(a => a.name === 'NotNull');
+			assert.strictEqual(notNullAttr?.targetElement, 'return', 'NotNull should target return');
+			assert.strictEqual(notNullAttr?.targetName, 'GetUser', 'NotNull should have targetName GetUser');
+			
+			const rangeAttr = attributes.find(a => a.name === 'Range');
+			assert.strictEqual(rangeAttr?.targetElement, 'parameter', 'Range should target parameter');
+			assert.strictEqual(rangeAttr?.targetName, 'id', 'Range should have targetName id');
+		});
+	});
+
+	suite('Additional Complex Real-World Attributes', () => {
+		test('should detect property with enum-based DataType attribute', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class Article
+	{
+		[DataType(DataType.DateTime)]
+		public DateTime PublishedDate { get; set; }
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			assert.ok(attributes.length >= 1);
+			const dataTypeAttr = attributes.find(a => a.name === 'DataType');
+			assert.ok(dataTypeAttr, 'Should detect DataType attribute');
+			assert.strictEqual(dataTypeAttr?.targetElement, 'property', 'DataType should target property');
+			assert.strictEqual(dataTypeAttr?.targetName, 'PublishedDate', 'DataType should target PublishedDate property');
+		});
+
+		test('should detect method returning nullable array with Cacheable and return MaybeNull', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class ArticleService
+	{
+		[Cacheable(600)]
+		[return: MaybeNull]
+		public Article[]? GetAllArticles()
+		{
+			return null;
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Cacheable'), 'Should detect Cacheable attribute');
+			assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
+			
+			const cacheableAttr = attributes.find(a => a.name === 'Cacheable');
+			assert.strictEqual(cacheableAttr?.targetName, 'GetAllArticles', 'Cacheable should target GetAllArticles');
+			
+			const maybeNullAttr = attributes.find(a => a.name === 'MaybeNull');
+			assert.strictEqual(maybeNullAttr?.targetElement, 'return', 'MaybeNull should target return');
+			assert.strictEqual(maybeNullAttr?.targetName, 'GetAllArticles', 'MaybeNull should target GetAllArticles');
+		});
+
+		test('should detect property with Required and EmailAddress attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class User
+	{
+		[Required]
+		[EmailAddress]
+		public string AuthorEmail { get; set; } = string.Empty;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Required'), 'Should detect Required attribute');
+			assert.ok(names.includes('EmailAddress'), 'Should detect EmailAddress attribute');
+			
+			const requiredAttr = attributes.find(a => a.name === 'Required');
+			assert.strictEqual(requiredAttr?.targetName, 'AuthorEmail', 'Required should target AuthorEmail');
+			
+			const emailAttr = attributes.find(a => a.name === 'EmailAddress');
+			assert.strictEqual(emailAttr?.targetName, 'AuthorEmail', 'EmailAddress should target AuthorEmail');
+		});
+
+		test('should detect property with multiple validation attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class Credentials
+	{
+		[Required]
+		[MinLength(8)]
+		[Obsolete("Use SecurePassword instead")]
+		public string Password { get; set; } = string.Empty;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Required'), 'Should detect Required');
+			assert.ok(names.includes('MinLength'), 'Should detect MinLength');
+			assert.ok(names.includes('Obsolete'), 'Should detect Obsolete');
+			
+			const allAttrs = attributes.filter(a => ['Required', 'MinLength', 'Obsolete'].includes(a.name));
+			allAttrs.forEach(attr => {
+				assert.strictEqual(attr?.targetName, 'Password', `${attr.name} should target Password`);
+			});
+		});
+
+		test('should detect private field with NonSerialized attribute', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class CacheData
+	{
+		[NonSerialized]
+		private string _contentCache;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const nonSerializedAttr = attributes.find(a => a.name === 'NonSerialized');
+			assert.ok(nonSerializedAttr, 'Should detect NonSerialized attribute');
+			assert.strictEqual(nonSerializedAttr?.targetElement, 'field', 'NonSerialized should target field');
+			assert.strictEqual(nonSerializedAttr?.targetName, '_contentCache', 'NonSerialized should target _contentCache');
+		});
+
+		test('should detect property with Range attribute on leading line', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class Review
+	{
+		[Range(0, 5)]
+		public decimal Rating { get; set; }
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const rangeAttr = attributes.find(a => a.name === 'Range');
+			assert.ok(rangeAttr, 'Should detect Range attribute');
+			assert.strictEqual(rangeAttr?.targetElement, 'property', 'Range should target property');
+			assert.strictEqual(rangeAttr?.targetName, 'Rating', 'Range should target Rating property');
+		});
+
+		test('should detect property with StringLength and MinimumLength parameters', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class Account
+	{
+		[Required]
+		[StringLength(100, MinimumLength = 3)]
+		public string Username { get; set; } = string.Empty;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Required'), 'Should detect Required');
+			assert.ok(names.includes('StringLength'), 'Should detect StringLength');
+			
+			const stringLengthAttr = attributes.find(a => a.name === 'StringLength');
+			assert.ok(stringLengthAttr?.arguments.includes('100'), 'Should capture length parameter');
+			assert.ok(stringLengthAttr?.arguments.includes('MinimumLength'), 'Should capture named parameter');
+			assert.strictEqual(stringLengthAttr?.targetName, 'Username', 'StringLength should target Username');
+		});
+
+		test('should detect event with Serializable attribute', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class ArticlePublisher
+	{
+		[Serializable]
+		public event EventHandler<EventArgs> ArticlePublished;
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const serializableAttr = attributes.find(a => a.name === 'Serializable');
+			assert.ok(serializableAttr, 'Should detect Serializable on event');
+			assert.strictEqual(serializableAttr?.targetElement, 'event', 'Serializable should target event');
+			assert.strictEqual(serializableAttr?.targetName, 'ArticlePublished', 'Serializable should target ArticlePublished event');
+		});
+
+		test('should detect field-scoped attribute on method declaration', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class UserRepository
+	{
+		[field: Serializable]
+		public User[] GetMultipleUsers(int[] ids)
+		{
+			return new User[0];
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const fieldAttr = attributes.find(a => a.name === 'Serializable');
+			assert.ok(fieldAttr, 'Should detect field-scoped Serializable attribute');
+			assert.strictEqual(fieldAttr?.targetSpecifier, 'field', 'Should recognize field: target specifier');
+		});
+
+		test('should detect method with Authorize and Loggable attributes with return MaybeNull', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class ArticleController
+	{
+		[Authorize("Editor", "Admin")]
+		[Loggable("Warning")]
+		[return: MaybeNull]
+		public Article UpdateArticle([Required] Article article)
+		{
+			return article;
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			assert.ok(names.includes('Authorize'), 'Should detect Authorize attribute');
+			assert.ok(names.includes('Loggable'), 'Should detect Loggable attribute');
+			assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
+			assert.ok(names.includes('Required'), 'Should detect Required parameter attribute');
+			
+			const authorizeAttr = attributes.find(a => a.name === 'Authorize');
+			assert.strictEqual(authorizeAttr?.arguments.includes('Editor'), true, 'Authorize should have Editor argument');
+			assert.strictEqual(authorizeAttr?.targetName, 'UpdateArticle', 'Authorize should target UpdateArticle');
+			
+			const loggableAttr = attributes.find(a => a.name === 'Loggable');
+			assert.strictEqual(loggableAttr?.targetName, 'UpdateArticle', 'Loggable should target UpdateArticle');
+			
+			const maybeNullAttr = attributes.find(a => a.name === 'MaybeNull');
+			assert.strictEqual(maybeNullAttr?.targetElement, 'return', 'MaybeNull should target return');
+			assert.strictEqual(maybeNullAttr?.targetName, 'UpdateArticle', 'MaybeNull should target UpdateArticle');
+			
+			const requiredAttr = attributes.find(a => a.name === 'Required');
+			assert.strictEqual(requiredAttr?.targetElement, 'parameter', 'Required should target parameter');
+			assert.strictEqual(requiredAttr?.targetName, 'article', 'Required should target article parameter');
+		});
+
+		test('should handle assembly and module attributes with fully qualified names', () => {
+			const code = `[assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
+[module: System.Diagnostics.CodeAnalysis.SuppressMessage("*", "*")]
+
+namespace AnotherExampleCsProject.Middleware
+{
+	public class LoggingMiddleware
+	{
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			
+			// Should detect assembly-level attributes
+			assert.ok(names.length >= 2, 'Should detect assembly and module attributes');
+			assert.ok(names.includes('AssemblyVersion') || attributes.some(a => a.fullName.includes('AssemblyVersion')), 
+				'Should detect AssemblyVersion');
+			assert.ok(names.includes('SuppressMessage') || attributes.some(a => a.fullName.includes('SuppressMessage')), 
+				'Should detect SuppressMessage');
+		});
+
+		test('should detect enum value with Display attribute', () => {
+			const code = `
+namespace TestNamespace
+{
+	public enum UserRole
+	{
+		[System.ComponentModel.DataAnnotations.Display(Name = "Guest")]
+		Guest = 1,
+
+		[System.ComponentModel.DataAnnotations.Display(Name = "Admin")]
+		Admin = 2
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const displayAttrs = attributes.filter(a => a.name === 'Display' || a.fullName.includes('Display'));
+			assert.ok(displayAttrs.length >= 2, 'Should detect Display attributes on enum values');
+			
+			// Check that arguments are captured (Name = "Guest")
+			displayAttrs.forEach(attr => {
+				assert.ok(attr.arguments.includes('Name'), 'Display attribute should have Name argument');
+			});
+		});
+
+		test('should detect method with ApiEndpoint attribute and multiple parameter attributes', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class UserService
+	{
+		[ApiEndpoint("/api/users/register", "POST")]
+		[Obsolete("Use RegisterUserAsync instead")]
+		[return: NotNull]
+		public User RegisterUser([Validate(5, 100)] string email, [Validate(3, 50)] string username)
+		{
+			return new User { Email = email, Username = username };
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			
+			assert.ok(names.includes('ApiEndpoint'), 'Should detect ApiEndpoint attribute');
+			assert.ok(names.includes('Obsolete'), 'Should detect Obsolete attribute');
+			assert.ok(names.includes('NotNull'), 'Should detect NotNull return attribute');
+			assert.strictEqual((attributes.filter(a => a.name === 'Validate')).length, 2, 'Should detect both Validate parameter attributes');
+			
+			const apiAttr = attributes.find(a => a.name === 'ApiEndpoint');
+			assert.strictEqual(apiAttr?.targetElement, 'method', 'ApiEndpoint should target method');
+			assert.strictEqual(apiAttr?.targetName, 'RegisterUser', 'ApiEndpoint should target RegisterUser');
+			assert.ok(apiAttr?.arguments.includes('/api/users/register'), 'Should capture endpoint path');
+			
+			const validateAttrs = attributes.filter(a => a.name === 'Validate');
+			assert.ok(validateAttrs.some(v => v.targetName === 'email'), 'Should detect Validate on email parameter');
+			assert.ok(validateAttrs.some(v => v.targetName === 'username'), 'Should detect Validate on username parameter');
+		});
+
+		test('should detect method with ApiEndpoint, return MaybeNull, field attribute, and parameter Range', () => {
+			const code = `
+namespace TestNamespace
+{
+	public class UserRepository
+	{
+		[ApiEndpoint("/api/users/{id}", "GET")]
+		[return: MaybeNull]
+		[field: Serializable]
+		public User GetUser([Range(1, int.MaxValue)] int userId)
+		{
+			return new User { UserId = userId, Email = "user@example.com", Username = "testuser" };
+		}
+	}
+}`;
+			const attributes = CSharpParser.parseAttributes(code);
+			const names = attributes.map(a => a.name);
+			
+			assert.ok(names.includes('ApiEndpoint'), 'Should detect ApiEndpoint');
+			assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
+			assert.ok(names.includes('Serializable'), 'Should detect Serializable with field: specifier');
+			assert.ok(names.includes('Range'), 'Should detect Range parameter attribute');
+			
+			const apiAttr = attributes.find(a => a.name === 'ApiEndpoint');
+			assert.strictEqual(apiAttr?.targetName, 'GetUser', 'ApiEndpoint should target GetUser');
+			
+			const maybeAttr = attributes.find(a => a.name === 'MaybeNull');
+			assert.strictEqual(maybeAttr?.targetElement, 'return', 'MaybeNull should target return');
+			assert.strictEqual(maybeAttr?.targetName, 'GetUser', 'MaybeNull should target GetUser');
+			
+			const fieldAttr = attributes.find(a => a.name === 'Serializable');
+			assert.strictEqual(fieldAttr?.targetSpecifier, 'field', 'Serializable should have field: specifier');
+			
+			const rangeAttr = attributes.find(a => a.name === 'Range');
+			assert.strictEqual(rangeAttr?.targetName, 'userId', 'Range should target userId parameter');
 		});
 	});
 });
