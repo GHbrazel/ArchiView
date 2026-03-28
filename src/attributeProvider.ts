@@ -147,6 +147,18 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   /**
+   * Get the total count of attributes across all files
+   * @returns Total number of attribute occurrences
+   */
+  getTotalAttributeCount(): number {
+    let count = 0;
+    for (const locations of this.attributeMap.values()) {
+      count += locations.length;
+    }
+    return count;
+  }
+
+  /**
    * Check if an attribute should be shown based on current filters
    */
   private shouldShowAttribute(attributeName: string): boolean {

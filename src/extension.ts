@@ -77,8 +77,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (selected !== undefined) {
 			const selectedAttrs = selected.map(s => s.attribute);
+			// setSelectedAttributes() will fire onFilterChanged event which triggers refresh
+			// Do NOT call refresh() here or it will cause double-parsing
 			filterManager.setSelectedAttributes(selectedAttrs);
-			attributeProvider.refresh();
 		}
 	});
 
