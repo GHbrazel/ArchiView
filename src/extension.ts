@@ -50,12 +50,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// Register main command
-	const disposable = vscode.commands.registerCommand('ArchiView', () => {
-		// The code you place here will be executed every time your command is executed
-		vscode.commands.executeCommand('archi-view-sidebar.focus');
-	});
-
 	// Register filter command to show filter UI
 	const filterCommand = vscode.commands.registerCommand('ArchiView.showFilter', async () => {
 		const allAttributes = attributeProvider.getAllAttributeNames();
@@ -83,7 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(disposable, refreshCommand, toggleCommand, filterCommand);
+	context.subscriptions.push(refreshCommand, toggleCommand, filterCommand);
 	
 	// Listen for filter changes and refresh tree
 	context.subscriptions.push(

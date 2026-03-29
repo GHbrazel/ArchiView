@@ -30,31 +30,26 @@
   "contributes": {
     "commands": [
       {
-        "command": "ArchiView",
-        "title": "Building Blocks",
-        "category": "Archi"
-      },
-      {
         "command": "ArchiView.ReportIssue",
         "title": "Report Issue",
-        "category": "Archi"
+        "category": "Archi View"
       },
       {
         "command": "ArchiView.refresh",
         "title": "Refresh Attributes",
-        "category": "Archi",
+        "category": "Archi View",
         "icon": "$(refresh)"
       },
       {
         "command": "ArchiView.toggleNamespaceHierarchy",
         "title": "Toggle Namespace Hierarchy",
-        "category": "Archi",
+        "category": "Archi View",
         "icon": "$(settings)"
       },
       {
         "command": "ArchiView.showFilter",
         "title": "Filter Attributes",
-        "category": "Archi",
+        "category": "Archi View",
         "icon": "$(filter)"
       }
     ],
