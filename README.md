@@ -1,6 +1,6 @@
-# ArchiView README
+# MetaLens README
 
-This is the README for your extension "Attrix". Attrix helps you understand and navigate annotation-driven codebases by scanning and surfacing metadata of C# attributes.
+This is the README for your extension "MetaLens". MetaLens helps you understand and navigate annotation-driven codebases by scanning and surfacing metadata of C# attributes.
 
 ## Features
 
@@ -39,7 +39,7 @@ Calling out known issues can help limit users opening duplicate issues against y
 
 ### 1.0.0
 
-Initial release of "Attrix.
+Initial release of "MetaLens.
 
 <!-- ## Following extension guidelines
 

@@ -49,13 +49,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   private loadSettings() {
-    const config = vscode.workspace.getConfiguration('ArchiView');
+    const config = vscode.workspace.getConfiguration('MetaLens');
     this.showNamespaceHierarchy = config.get('showNamespaceHierarchy', true);
   }
 
   private setupConfigListener() {
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('ArchiView.showNamespaceHierarchy')) {
+      if (event.affectsConfiguration('MetaLens.showNamespaceHierarchy')) {
         this.loadSettings();
         this._onDidChangeTreeData.fire(undefined);
       }

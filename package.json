@@ -1,10 +1,10 @@
 {
-  "name": "archi-view",
-  "displayName": "archi-view",
+  "name": "meta-lens",
+  "displayName": "MetaLens",
   "description": "Listing Building Blocks",
   "publisher": "GHbrazel",
   "version": "0.0.1",
-  "icon": "media/houseWithPillarMagnified.png",
+  "icon": "$(telescope)",
   "repository": "https://github.com/GHbrazel/ArchiView",
   "engines": {
     "vscode": "^1.107.0"
@@ -30,49 +30,49 @@
   "contributes": {
     "commands": [
       {
-        "command": "ArchiView.ReportIssue",
+        "command": "MetaLens.ReportIssue",
         "title": "Report Issue",
-        "category": "Archi View"
+        "category": "MetaLens"
       },
       {
-        "command": "ArchiView.refresh",
+        "command": "MetaLens.refresh",
         "title": "Refresh Attributes",
-        "category": "Archi View",
+        "category": "MetaLens",
         "icon": "$(refresh)"
       },
       {
-        "command": "ArchiView.toggleNamespaceHierarchy",
+        "command": "MetaLens.toggleNamespaceHierarchy",
         "title": "Toggle Namespace Hierarchy",
-        "category": "Archi View",
+        "category": "MetaLens",
         "icon": "$(settings)"
       },
       {
-        "command": "ArchiView.showFilter",
+        "command": "MetaLens.showFilter",
         "title": "Filter Attributes",
-        "category": "Archi View",
+        "category": "MetaLens",
         "icon": "$(filter)"
       }
     ],
     "menus": {
       "issue/reporter": [
         {
-          "command": "ArchiView.ReportIssue"
+          "command": "MetaLens.ReportIssue"
         }
       ],
       "view/title": [
         {
-          "command": "ArchiView.toggleNamespaceHierarchy",
-          "when": "view == archi-view-sidebar",
+          "command": "MetaLens.toggleNamespaceHierarchy",
+          "when": "view == meta-lens-sidebar",
           "group": "navigation"
         },
         {
-          "command": "ArchiView.refresh",
-          "when": "view == archi-view-sidebar",
+          "command": "MetaLens.refresh",
+          "when": "view == meta-lens-sidebar",
           "group": "navigation"
         },
         {
-          "command": "ArchiView.showFilter",
-          "when": "view == archi-view-sidebar",
+          "command": "MetaLens.showFilter",
+          "when": "view == meta-lens-sidebar",
           "group": "navigation"
         }
       ]
@@ -80,25 +80,25 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "archi-view",
-          "title": "Archi View",
+          "id": "meta-lens",
+          "title": "MetaLens",
           "icon": "$(telescope)"
         }
       ]
     },
     "views": {
-      "archi-view": [
+      "meta-lens": [
         {
-          "id": "archi-view-sidebar",
+          "id": "meta-lens-sidebar",
           "icon": "$(telescope)",
-          "name": "Archi View"
+          "name": "MetaLens"
         }
       ]
     },
     "configuration": {
-      "title": "ArchiView",
+      "title": "MetaLens",
       "properties": {
-        "ArchiView.showNamespaceHierarchy": {
+        "MetaLens.showNamespaceHierarchy": {
           "type": "boolean",
           "default": true,
           "description": "Show attributes organized by namespace hierarchy (true) or flat file list (false)"

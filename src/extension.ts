@@ -9,24 +9,24 @@ import { FilterManager } from './filterManager';
 export function activate(context: vscode.ExtensionContext) {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "ArchiView" is now active!');
+	console.log('Congratulations, your extension "MetaLens" is now active!');
 
 	// Create filter manager
 	const filterManager = new FilterManager();
 
 	// Create and register the tree data provider for C# attributes
 	const attributeProvider = new AttributeProvider(filterManager);
-	vscode.window.registerTreeDataProvider('archi-view-sidebar', attributeProvider);
+	vscode.window.registerTreeDataProvider('meta-lens-sidebar', attributeProvider);
 
 	// Register refresh command
-	const refreshCommand = vscode.commands.registerCommand('ArchiView.refresh', () => {
+	const refreshCommand = vscode.commands.registerCommand('MetaLens.refresh', () => {
 		console.log('Refreshing attributes...');
 		attributeProvider.refresh();
 	});
 
 	// Register toggle namespace hierarchy command
-	const toggleCommand = vscode.commands.registerCommand('ArchiView.toggleNamespaceHierarchy', async () => {
-		const config = vscode.workspace.getConfiguration('ArchiView');
+	const toggleCommand = vscode.commands.registerCommand('MetaLens.toggleNamespaceHierarchy', async () => {
+		const config = vscode.workspace.getConfiguration('MetaLens');
 		const currentState = config.get('showNamespaceHierarchy', true);
 		
 		const options = [
@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Register filter command to show filter UI
-	const filterCommand = vscode.commands.registerCommand('ArchiView.showFilter', async () => {
+	const filterCommand = vscode.commands.registerCommand('MetaLens.showFilter', async () => {
 		const allAttributes = attributeProvider.getAllAttributeNames();
 		const currentFilters = filterManager.getSelectedAttributes();
 		
@@ -89,5 +89,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	console.log('Your extension "ArchiView" is now inactive. Goodbye!');
+	console.log('Your extension "MetaLens" is now inactive. Goodbye!');
 }
