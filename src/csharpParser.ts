@@ -37,324 +37,483 @@ export class CSharpParser {
 
   /**
    * Parses C# source code and extracts all attributes
-   * Key distinction: Attributes ALWAYS appear at the start of a line (after whitespace)
-   * Also detects parameter attributes inside method signatures
+   * Orchestrates extraction of both line-based and parameter attributes
    */
   static parseAttributes(content: string): AttributeInfo[] {
     const lines = content.split('\n');
+    
+    // Extract both line-based attributes and parameter attributes
+    const lineBasedAttributes = this.extractLineBasedAttributes(lines);
+    const paramAttributes = this.extractParameterAttributes(lines);
+    
+    return [...lineBasedAttributes, ...paramAttributes];
+  }
+
+  /**
+   * Extracts attributes that appear at the start of lines
+   * Handles stacked attributes, multi-line attributes, and determines target elements
+   */
+  private static extractLineBasedAttributes(lines: string[]): AttributeInfo[] {
     const attributes: AttributeInfo[] = [];
 
-    // First, extract line-based attributes (class, method, property attributes)
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
       
-      // Attributes must start at the beginning of a line (after optional whitespace)
-      const lineStartMatch = line.match(/^\s*/);
-      if (!lineStartMatch) {
+      // Check if line starts with an attribute
+      if (!this.isAttributeStartLine(line)) {
         continue;
       }
 
-      const leadingWhitespace = lineStartMatch[0];
-      const restOfLine = line.substring(leadingWhitespace.length);
-
-      // Check if line starts with an attribute pattern
-      if (!restOfLine.startsWith('[')) {
-        continue;
-      }
-
-      // Handle potentially multi-line attributes
-      let fullAttributeText = restOfLine;
-      let currentLineIdx = lineIndex;
+      // Assemble attribute text, handling multi-line cases
+      const { attributeText, endLineIndex } = this.assembleMultiLineAttribute(lines, lineIndex);
       
-      // Keep appending lines until we find the closing bracket
-      let bracketCount = 0;
-      for (let i = 0; i < fullAttributeText.length; i++) {
-        if (fullAttributeText[i] === '[') {bracketCount++;}
-        if (fullAttributeText[i] === ']') {bracketCount--;}
-      }
+      // Find the target once for all stacked attributes on this block
+      const targetName = this.findTargetName(lines, endLineIndex);
 
-      // If we didn't find matching brackets, try next lines
-      while (bracketCount > 0 && currentLineIdx + 1 < lines.length) {
-        currentLineIdx++;
-        const nextLine = lines[currentLineIdx];
-        fullAttributeText += ' ' + nextLine.trim();
-        
-        for (let i = 0; i < nextLine.length; i++) {
-          if (nextLine[i] === '[') {bracketCount++;}
-          if (nextLine[i] === ']') {bracketCount--;}
-        }
-      }
-
-      // Find the target name once for all stacked attributes
-      const targetName = this.findTargetName(lines, currentLineIdx);
-
-      // Extract all stacked attributes from the beginning
-      let currentPos = 0;
-
-      while (currentPos < fullAttributeText.length) {
-        if (fullAttributeText[currentPos] !== '[') {
-          break;
-        }
-
-        // First check for explicit target specifier: [target: ...]
-        let targetSpecifier = '';
-        const targetSpecifierMatch = fullAttributeText.substring(currentPos + 1).match(/^(\s*)(assembly|module|return|type|method|field|property|param|event|typevar)(\s*:\s*)/);
-        let nameStartPos = currentPos + 1;
-        
-        if (targetSpecifierMatch) {
-          targetSpecifier = targetSpecifierMatch[2];
-          nameStartPos = currentPos + 1 + targetSpecifierMatch[0].length;
-        }
-
-        // Extract attribute name
-        const nameMatch = fullAttributeText.substring(nameStartPos).match(/^(\s*)([A-Za-z_][A-Za-z0-9_\.]*)/);
-        if (!nameMatch) {
-          break;
-        }
-
-        const attributeName = nameMatch[2];
-        let searchPos = nameStartPos + nameMatch[0].length;
-
-        // Skip whitespace after name
-        const wsMatch = fullAttributeText.substring(searchPos).match(/^(\s*)/);
-        if (wsMatch) {
-          searchPos += wsMatch[0].length;
-        }
-
-        let attributeArgs = '';
-        let attributeEnd = -1;
-
-        // Check if there are arguments
-        if (fullAttributeText[searchPos] === '(') {
-          // Find matching closing parenthesis, handling nested parens and angle brackets
-          let parenDepth = 1;
-          let angleDepth = 0;
-          let i = searchPos + 1;
-
-          while (i < fullAttributeText.length && parenDepth > 0) {
-            const char = fullAttributeText[i];
-            if (char === '<') {
-              angleDepth++;
-            } else if (char === '>') {
-              angleDepth--;
-            } else if (char === '(' && angleDepth === 0) {
-              parenDepth++;
-            } else if (char === ')' && angleDepth === 0) {
-              parenDepth--;
-            }
-            i++;
-          }
-
-          if (parenDepth === 0) {
-            attributeArgs = fullAttributeText.substring(searchPos + 1, i - 1).trim();
-            searchPos = i;
-          } else {
-            break; // Unmatched parenthesis
-          }
-        }
-
-        // Skip whitespace before closing bracket
-        const wsMatch2 = fullAttributeText.substring(searchPos).match(/^(\s*)/);
-        if (wsMatch2) {
-          searchPos += wsMatch2[0].length;
-        }
-
-        // Expect closing bracket
-        if (fullAttributeText[searchPos] === ']') {
-          attributeEnd = searchPos + 1;
-
-          // Determine target element (class, method, property, etc.)
-          // If we have an explicit target specifier, use it to determine targetElement
-          let targetElement = '';
-          if (targetSpecifier) {
-            // Map explicit targets to target elements
-            if (targetSpecifier === 'return') {
-              targetElement = 'return';
-            } else if (targetSpecifier === 'type') {
-              targetElement = 'class'; // or could be interface, struct, etc.
-            } else if (targetSpecifier === 'method') {
-              targetElement = 'method';
-            } else if (targetSpecifier === 'field') {
-              targetElement = 'field';
-            } else if (targetSpecifier === 'property') {
-              targetElement = 'property';
-            } else if (targetSpecifier === 'param') {
-              targetElement = 'parameter';
-            } else if (targetSpecifier === 'event') {
-              targetElement = 'event';
-            } else if (targetSpecifier === 'assembly' || targetSpecifier === 'module') {
-              targetElement = targetSpecifier;
-            } else if (targetSpecifier === 'typevar') {
-              targetElement = 'typevar';
-            }
-          } else {
-            // No explicit target specifier, infer from context
-            targetElement = this.findTargetElement(lines, currentLineIdx);
-          }
-
-          attributes.push({
-            name: this.extractSimpleName(attributeName),
-            fullName: attributeName,
-            arguments: attributeArgs,
-            line: lineIndex + 1,
-            column: currentPos,
-            targetElement: targetElement,
-            targetSpecifier: targetSpecifier || undefined,
-            targetName: targetName
-          });
-
-          currentPos = attributeEnd;
-
-          // Skip whitespace between stacked attributes
-          const nextWsMatch = fullAttributeText.substring(currentPos).match(/^(\s*)/);
-          if (nextWsMatch) {
-            currentPos += nextWsMatch[0].length;
-          }
-        } else {
-          break; // No closing bracket found
-        }
-      }
+      // Extract all stacked attributes
+      const stackedAttributes = this.extractStackedAttributes(attributeText, lineIndex, targetName, lines);
+      attributes.push(...stackedAttributes);
 
       // Skip lines we've already processed
-      if (currentLineIdx > lineIndex) {
-        lineIndex = currentLineIdx;
+      if (endLineIndex > lineIndex) {
+        lineIndex = endLineIndex;
       }
     }
-
-    // Second, extract parameter attributes inside method signatures
-    const paramAttributes = this.extractParameterAttributes(lines);
-    attributes.push(...paramAttributes);
 
     return attributes;
   }
 
   /**
+   * Checks if a line begins with an attribute (after optional whitespace)
+   */
+  private static isAttributeStartLine(line: string): boolean {
+    const lineStartMatch = line.match(/^\s*/);
+    if (!lineStartMatch) {
+      return false;
+    }
+    const restOfLine = line.substring(lineStartMatch[0].length);
+    return restOfLine.startsWith('[');
+  }
+
+  /**
+   * Assembles a complete attribute block, handling multi-line attributes
+   * Returns the full attribute text and the index of the last line used
+   */
+  private static assembleMultiLineAttribute(
+    lines: string[],
+    startLineIndex: number
+  ): { attributeText: string; endLineIndex: number } {
+    const startLine = lines[startLineIndex];
+    const leadingWhitespace = startLine.match(/^\s*/)![0];
+    let attributeText = startLine.substring(leadingWhitespace.length);
+    let currentLineIdx = startLineIndex;
+
+    // Count brackets to find when attribute block is complete
+    let bracketBalance = this.countBracketBalance(attributeText);
+
+    // If incomplete, append next lines
+    while (bracketBalance > 0 && currentLineIdx + 1 < lines.length) {
+      currentLineIdx++;
+      const nextLine = lines[currentLineIdx];
+      attributeText += ' ' + nextLine.trim();
+      bracketBalance = this.countBracketBalance(attributeText);
+    }
+
+    return { attributeText, endLineIndex: currentLineIdx };
+  }
+
+  /**
+   * Counts the net balance of brackets in text
+   * Positive = unmatched opening brackets
+   */
+  private static countBracketBalance(text: string): number {
+    let balance = 0;
+    for (const char of text) {
+      if (char === '[') {balance++;}
+      if (char === ']') {balance--;}
+    }
+    return balance;
+  }
+
+  /**
+   * Extracts all stacked attributes from an attribute block
+   * Example: [Attribute1][Attribute2] → two separate attributes
+   */
+  private static extractStackedAttributes(
+    attributeText: string,
+    lineIndex: number,
+    targetName: string | undefined,
+    lines: string[]
+  ): AttributeInfo[] {
+    const attributes: AttributeInfo[] = [];
+    let currentPos = 0;
+
+    while (currentPos < attributeText.length && attributeText[currentPos] === '[') {
+      const result = this.extractSingleAttribute(attributeText, currentPos, lineIndex, targetName, lines);
+      
+      if (result.attribute) {
+        attributes.push(result.attribute);
+        currentPos = result.nextPos;
+      } else {
+        break;
+      }
+    }
+
+    return attributes;
+  }
+
+  /**
+   * Extracts a single attribute from an attribute block
+   * Handles: [AttributeName(args)], [target: AttributeName(args)]
+   */
+  private static extractSingleAttribute(
+    attributeText: string,
+    startPos: number,
+    lineIndex: number,
+    targetName: string | undefined,
+    lines: string[]
+  ): { attribute: AttributeInfo | null; nextPos: number } {
+    // Parse target specifier if present: [target: ...]
+    let pos = startPos + 1; // Skip opening '['
+    const targetSpecifier = this.parseTargetSpecifier(attributeText, pos);
+    
+    if (targetSpecifier.specifier) {
+      pos = targetSpecifier.nextPos;
+    }
+
+    // Extract attribute name
+    const nameResult = this.parseAttributeName(attributeText, pos);
+    if (!nameResult.name) {
+      return { attribute: null, nextPos: startPos + 1 };
+    }
+
+    pos = nameResult.nextPos;
+
+    // Extract attribute arguments if present
+    const argsResult = this.parseAttributeArguments(attributeText, pos);
+    pos = argsResult.nextPos;
+
+    // Expect closing bracket
+    const wsBeforeClosing = attributeText.substring(pos).match(/^(\s*)/)![0].length;
+    pos += wsBeforeClosing;
+
+    if (attributeText[pos] !== ']') {
+      return { attribute: null, nextPos: startPos + 1 };
+    }
+
+    pos++; // Skip closing ']'
+
+    // Determine target element from specifier or context
+    const targetElement = targetSpecifier.specifier
+      ? this.mapTargetSpecifierToElement(targetSpecifier.specifier)
+      : this.findTargetElement(lines, lineIndex);
+
+    const attribute: AttributeInfo = {
+      name: this.extractSimpleName(nameResult.name),
+      fullName: nameResult.name,
+      arguments: argsResult.arguments,
+      line: lineIndex + 1,
+      column: startPos,
+      targetElement: targetElement,
+      targetSpecifier: targetSpecifier.specifier || undefined,
+      targetName: targetName
+    };
+
+    // Skip whitespace to next attribute
+    const wsAfterClosing = attributeText.substring(pos).match(/^(\s*)/)![0].length;
+    pos += wsAfterClosing;
+
+    return { attribute, nextPos: pos };
+  }
+
+  /**
+   * Parses optional target specifier: [target: ...] → 'target'
+   * Examples: [assembly: ...], [return: ...], [param: ...]
+   */
+  private static parseTargetSpecifier(
+    attributeText: string,
+    pos: number
+  ): { specifier: string | null; nextPos: number } {
+    const match = attributeText.substring(pos).match(
+      /^(\s*)(assembly|module|return|type|method|field|property|param|event|typevar)(\s*:\s*)/
+    );
+
+    if (match) {
+      return {
+        specifier: match[2],
+        nextPos: pos + match[0].length
+      };
+    }
+
+    return { specifier: null, nextPos: pos };
+  }
+
+  /**
+   * Parses attribute name with optional namespace
+   * Examples: 'Serializable', 'System.Serializable'
+   */
+  private static parseAttributeName(
+    attributeText: string,
+    pos: number
+  ): { name: string | null; nextPos: number } {
+    const match = attributeText.substring(pos).match(/^(\s*)([A-Za-z_][A-Za-z0-9_\.]*)/);
+
+    if (!match) {
+      return { name: null, nextPos: pos };
+    }
+
+    return {
+      name: match[2],
+      nextPos: pos + match[0].length
+    };
+  }
+
+  /**
+   * Parses attribute arguments: (arg1, arg2, ...)
+   * Handles nested parentheses and angle brackets for generics
+   */
+  private static parseAttributeArguments(
+    attributeText: string,
+    pos: number
+  ): { arguments: string; nextPos: number } {
+    if (attributeText[pos] !== '(') {
+      return { arguments: '', nextPos: pos };
+    }
+
+    let parenDepth = 1;
+    let angleDepth = 0;
+    let i = pos + 1;
+
+    while (i < attributeText.length && parenDepth > 0) {
+      const char = attributeText[i];
+      if (char === '<') {angleDepth++;}
+      else if (char === '>') {angleDepth--;}
+      else if (char === '(' && angleDepth === 0) {parenDepth++;}
+      else if (char === ')' && angleDepth === 0) {parenDepth--;}
+      i++;
+    }
+
+    if (parenDepth === 0) {
+      const args = attributeText.substring(pos + 1, i - 1).trim();
+      return { arguments: args, nextPos: i };
+    }
+
+    return { arguments: '', nextPos: pos };
+  }
+
+  /**
+   * Maps explicit target specifiers to target element types
+   * Example: 'return' → 'return', 'param' → 'parameter'
+   */
+  private static mapTargetSpecifierToElement(specifier: string): string {
+    const specifierMap: { [key: string]: string } = {
+      'return': 'return',
+      'type': 'class',
+      'method': 'method',
+      'field': 'field',
+      'property': 'property',
+      'param': 'parameter',
+      'event': 'event',
+      'assembly': 'assembly',
+      'module': 'module',
+      'typevar': 'typevar'
+    };
+
+    return specifierMap[specifier] || specifier;
+  }
+
+  /**
    * Extracts attributes applied to method parameters
-   * Pattern 1: [Attribute] Type ParameterName (implicit parameter attribute)
-   * Pattern 2: [param: Attribute] Type ParameterName (explicit param target)
-   * Example: [NotNull] object value or [param: Required] string value
+   * Orchestrates extraction of both implicit and explicit parameter attribute patterns
    */
   private static extractParameterAttributes(lines: string[]): AttributeInfo[] {
     const attributes: AttributeInfo[] = [];
-    const content = lines.join('\n');
 
-    // Find method signatures - look for patterns with parentheses
-    // This regex looks for opening parentheses that could contain parameters
-    let currentPos = 0;
-    
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
-      
-      // Look for opening parenthesis (method parameter list)
-      const parenMatch = line.match(/\(/);
-      if (!parenMatch) {
+
+      // Skip lines without opening parenthesis
+      if (!line.match(/\(/)) {
         continue;
       }
 
-      // Get the full method signature (may span multiple lines)
-      let fullSignature = line;
-      let endLineIdx = lineIndex;
-      let parenCount = (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
+      // Assemble full method signature (may span multiple lines)
+      const { fullSignature, endLineIdx } = this.assembleMethodSignature(lines, lineIndex);
 
-      // Collect lines until we find the closing parenthesis
-      while (parenCount > 0 && endLineIdx + 1 < lines.length) {
-        endLineIdx++;
-        fullSignature += '\n' + lines[endLineIdx];
-        parenCount += (lines[endLineIdx].match(/\(/g) || []).length - (lines[endLineIdx].match(/\)/g) || []).length;
-      }
-
-      // Extract parameter list
+      // Extract parameter list from signature
       const startParen = fullSignature.indexOf('(');
       const endParen = fullSignature.lastIndexOf(')');
-      
+
       if (startParen !== -1 && endParen !== -1) {
         const paramList = fullSignature.substring(startParen + 1, endParen);
-        
-        // Pattern 1: Look for implicit parameter attributes: [Attribute] Type Name
-        // Must start with '[' to ensure it's an actual attribute
-        // Type can include: generic parameters <>, nullable marker ?, and namespace dots
-        const implicitParamAttrRegex = /\[\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
-        
-        let match;
-        while ((match = implicitParamAttrRegex.exec(paramList)) !== null) {
-          const attributeName = match[1];
-          const attributeArgs = match[2] || '';
-          const paramType = match[3];
-          const paramName = match[4];
-          
-          // Calculate the actual line where this attribute appears
-          const relativePos = fullSignature.indexOf(match[0]);
-          let attrLineIdx = lineIndex;
-          let tempPos = 0;
-          
-          for (let i = lineIndex; i <= endLineIdx; i++) {
-            tempPos += lines[i].length + 1; // +1 for newline
-            if (tempPos >= relativePos) {
-              attrLineIdx = i;
-              break;
-            }
-          }
 
-          attributes.push({
-            name: this.extractSimpleName(attributeName),
-            fullName: attributeName,
-            arguments: attributeArgs,
-            line: attrLineIdx + 1,
-            column: line.indexOf('[' + attributeName),
-            targetElement: 'parameter',
-            targetName: paramName,
-            parameterType: paramType,
-            parameterName: paramName
-          });
-        }
+        // Extract both implicit and explicit parameter attributes
+        const implicitAttrs = this.extractImplicitParameterAttributes(
+          paramList,
+          fullSignature,
+          lines,
+          lineIndex
+        );
+        const explicitAttrs = this.extractExplicitParameterAttributes(
+          paramList,
+          fullSignature,
+          lines,
+          lineIndex
+        );
 
-        // Pattern 2: Look for explicit param target attributes: [param: Attribute] or other targets
-        // Format: [target: AttributeName(args)] Type ParamName
-        const explicitTargetRegex = /\[\s*(param|return|type|method|field|property|event)\s*:\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
-        
-        while ((match = explicitTargetRegex.exec(paramList)) !== null) {
-          const targetSpecifier = match[1];
-          
-          // Only process param and return targets in parameter context
-          if (targetSpecifier !== 'param' && targetSpecifier !== 'return') {
-            continue;
-          }
-          
-          const attributeName = match[2];
-          const attributeArgs = match[3] || '';
-          const paramType = match[4];
-          const paramName = match[5];
-          
-          // Calculate the actual line where this attribute appears
-          const relativePos = fullSignature.indexOf(match[0]);
-          let attrLineIdx = lineIndex;
-          let tempPos = 0;
-          
-          for (let i = lineIndex; i <= endLineIdx; i++) {
-            tempPos += lines[i].length + 1; // +1 for newline
-            if (tempPos >= relativePos) {
-              attrLineIdx = i;
-              break;
-            }
-          }
+        attributes.push(...implicitAttrs, ...explicitAttrs);
 
-          attributes.push({
-            name: this.extractSimpleName(attributeName),
-            fullName: attributeName,
-            arguments: attributeArgs,
-            line: attrLineIdx + 1,
-            column: line.indexOf('['),
-            targetElement: targetSpecifier === 'param' ? 'parameter' : 'return',
-            targetSpecifier: targetSpecifier,
-            targetName: targetSpecifier === 'param' ? paramName : undefined,
-            parameterType: paramType,
-            parameterName: paramName
-          });
+        // Skip lines we've processed in the signature
+        if (endLineIdx > lineIndex) {
+          lineIndex = endLineIdx;
         }
       }
     }
 
     return attributes;
+  }
+
+  /**
+   * Assembles a complete method signature, handling multi-line cases
+   */
+  private static assembleMethodSignature(
+    lines: string[],
+    startLineIndex: number
+  ): { fullSignature: string; endLineIdx: number } {
+    const line = lines[startLineIndex];
+    let fullSignature = line;
+    let endLineIdx = startLineIndex;
+
+    // Count parentheses to find closing paren
+    let parenCount =
+      (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
+
+    // Append lines until parentheses are balanced
+    while (parenCount > 0 && endLineIdx + 1 < lines.length) {
+      endLineIdx++;
+      fullSignature += '\n' + lines[endLineIdx];
+      parenCount +=
+        (lines[endLineIdx].match(/\(/g) || []).length -
+        (lines[endLineIdx].match(/\)/g) || []).length;
+    }
+
+    return { fullSignature, endLineIdx };
+  }
+
+  /**
+   * Extracts implicit parameter attributes: [Attribute] Type Name
+   */
+  private static extractImplicitParameterAttributes(
+    paramList: string,
+    fullSignature: string,
+    lines: string[],
+    startLineIndex: number
+  ): AttributeInfo[] {
+    const attributes: AttributeInfo[] = [];
+    const regex =
+      /\[\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
+
+    let match;
+    while ((match = regex.exec(paramList)) !== null) {
+      const attributeName = match[1];
+      const attributeArgs = match[2] || '';
+      const paramType = match[3];
+      const paramName = match[4];
+
+      const relativePos = fullSignature.indexOf(match[0]);
+      const attrLineIdx = this.calculateAttributeLineIndex(
+        lines,
+        startLineIndex,
+        relativePos
+      );
+
+      attributes.push({
+        name: this.extractSimpleName(attributeName),
+        fullName: attributeName,
+        arguments: attributeArgs,
+        line: attrLineIdx + 1,
+        column: lines[startLineIndex].indexOf('[' + attributeName),
+        targetElement: 'parameter',
+        targetName: paramName,
+        parameterType: paramType,
+        parameterName: paramName
+      });
+    }
+
+    return attributes;
+  }
+
+  /**
+   * Extracts explicit parameter attributes with target specifiers
+   */
+  private static extractExplicitParameterAttributes(
+    paramList: string,
+    fullSignature: string,
+    lines: string[],
+    startLineIndex: number
+  ): AttributeInfo[] {
+    const attributes: AttributeInfo[] = [];
+    const regex =
+      /\[\s*(param|return|type|method|field|property|event)\s*:\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
+
+    let match;
+    while ((match = regex.exec(paramList)) !== null) {
+      const targetSpecifier = match[1];
+
+      // Only process param and return targets
+      if (targetSpecifier !== 'param' && targetSpecifier !== 'return') {
+        continue;
+      }
+
+      const attributeName = match[2];
+      const attributeArgs = match[3] || '';
+      const paramType = match[4];
+      const paramName = match[5];
+
+      const relativePos = fullSignature.indexOf(match[0]);
+      const attrLineIdx = this.calculateAttributeLineIndex(
+        lines,
+        startLineIndex,
+        relativePos
+      );
+
+      attributes.push({
+        name: this.extractSimpleName(attributeName),
+        fullName: attributeName,
+        arguments: attributeArgs,
+        line: attrLineIdx + 1,
+        column: lines[startLineIndex].indexOf('['),
+        targetElement: targetSpecifier === 'param' ? 'parameter' : 'return',
+        targetSpecifier: targetSpecifier,
+        targetName: targetSpecifier === 'param' ? paramName : undefined,
+        parameterType: paramType,
+        parameterName: paramName
+      });
+    }
+
+    return attributes;
+  }
+
+  /**
+   * Calculates the actual line index where an attribute appears in a multi-line signature
+   */
+  private static calculateAttributeLineIndex(
+    lines: string[],
+    startLineIndex: number,
+    relativePos: number
+  ): number {
+    let lineIdx = startLineIndex;
+    let tempPos = 0;
+
+    for (let i = startLineIndex; i < lines.length; i++) {
+      tempPos += lines[i].length + 1; // +1 for newline
+      if (tempPos >= relativePos) {
+        lineIdx = i;
+        break;
+      }
+    }
+
+    return lineIdx;
   }
 
   /**

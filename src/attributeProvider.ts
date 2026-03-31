@@ -210,259 +210,319 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
 
   getChildren(element?: AttributeItem): AttributeItem[] {
     if (!element) {
-      // Root level: show hierarchically organized data
-      if (this.showNamespaceHierarchy) {
-        // Hierarchy mode: show namespaces first
-        const namespaceMap = new Map<string, AttributeLocation[]>();
-        
-        // Collect all locations by namespace, respecting filters
-        for (const [attrName, locations] of this.attributeMap.entries()) {
-          // Only include if attribute passes filter
-          if (!this.shouldShowAttribute(attrName)) {
-            continue;
-          }
-          
-          for (const location of locations) {
-            const ns = this.extractNamespacePart(location.namespace);
-            if (!namespaceMap.has(ns)) {
-              namespaceMap.set(ns, []);
-            }
-            namespaceMap.get(ns)!.push(location);
-          }
-        }
-
-        // Return namespaces as root
-        return Array.from(namespaceMap.keys())
-          .sort()
-          .map(
-            (ns) => {
-              const nsLocations = namespaceMap.get(ns) || [];
-              return new AttributeItem(
-                `${ns} (${nsLocations.length})`,
-                vscode.TreeItemCollapsibleState.Collapsed,
-                undefined,
-                undefined,
-                `namespace|${ns}` // Mark as namespace node
-              );
-            }
-          );
-      } else {
-        // Flat mode: show attributes directly
-        return Array.from(this.attributeMap.keys())
-          .filter(attributeName => this.shouldShowAttribute(attributeName))
-          .sort()
-          .map(
-            (attributeName) => {
-              const locations = this.attributeMap.get(attributeName) || [];
-              return new AttributeItem(
-                `[${attributeName}] (${locations.length})`,
-                vscode.TreeItemCollapsibleState.Collapsed,
-                undefined,
-                undefined,
-                attributeName
-              );
-            }
-          );
-      }
+      // Root level
+      return this.showNamespaceHierarchy
+        ? this.getRootNamespaceChildren()
+        : this.getRootFlatChildren();
     }
 
-    // Level 2 in hierarchy mode: show attributes within a namespace
-    if (element.context && element.context.startsWith('namespace|') && !element.file) {
-      const ns = element.context.replace('namespace|', '');
-      const attributeMap = new Map<string, AttributeLocation[]>();
-
-      // Collect attributes for this namespace, respecting filters
-      for (const [attrName, locations] of this.attributeMap.entries()) {
-        // Only include if attribute passes filter
-        if (!this.shouldShowAttribute(attrName)) {
-          continue;
-        }
-        
-        const nsLocations = locations.filter(loc => this.extractNamespacePart(loc.namespace) === ns);
-        if (nsLocations.length > 0) {
-          attributeMap.set(attrName, nsLocations);
-        }
-      }
-
-      // Return attributes in this namespace
-      return Array.from(attributeMap.keys())
-        .sort()
-        .map(
-          (attributeName) => {
-            const locations = attributeMap.get(attributeName) || [];
-            return new AttributeItem(
-              `[${attributeName}] (${locations.length})`,
-              vscode.TreeItemCollapsibleState.Collapsed,
-              undefined,
-              undefined,
-              `attribute|${attributeName}|${ns}` // Mark as attribute within namespace
-            );
-          }
-        );
+    // Handle interface method signatures
+    if (element.file && element.label?.includes("interface '")) {
+      return this.getInterfaceMethodChildren(element);
     }
 
-    // Level 2 in flat mode: show files for this attribute
+    // Handle namespace level (hierarchy mode)
+    if (element.context?.startsWith('namespace|') && !element.file) {
+      return this.getNamespaceAttributeChildren(element);
+    }
+
+    // Handle attribute in flat mode (root level)
     if (element.label?.startsWith('[') && !element.file && element.context && !element.context.includes('|')) {
-      const attributeName = element.context;
-      const locations = this.attributeMap.get(attributeName) || [];
-      const uniqueFiles = new Map<string, AttributeLocation[]>();
-
-      for (const location of locations) {
-        if (!uniqueFiles.has(location.file)) {
-          uniqueFiles.set(location.file, []);
-        }
-        uniqueFiles.get(location.file)!.push(location);
-      }
-
-      return Array.from(uniqueFiles.keys())
-        .sort()
-        .map(
-          (file) => {
-            const fileLocations = uniqueFiles.get(file) || [];
-            const fileName = path.basename(file);
-            
-            return new AttributeItem(
-              fileName,
-              vscode.TreeItemCollapsibleState.Collapsed,
-              file,
-              undefined,
-              attributeName
-            );
-          }
-        );
+      return this.getFlatModeFileChildren(element);
     }
 
-    // Level 3 in hierarchy mode: show files for this attribute within a namespace
-    if (element.context && element.context.startsWith('attribute|')) {
-      const parts = element.context.replace('attribute|', '').split('|');
-      const attributeName = parts[0];
-      const ns = parts[1];
-      
-      const locations = this.attributeMap.get(attributeName) || [];
-      const fileMap = new Map<string, AttributeLocation[]>();
-
-      // Filter by namespace and group by file
-      for (const location of locations) {
-        if (this.extractNamespacePart(location.namespace) === ns) {
-          if (!fileMap.has(location.file)) {
-            fileMap.set(location.file, []);
-          }
-          fileMap.get(location.file)!.push(location);
-        }
-      }
-
-      return Array.from(fileMap.keys())
-        .sort()
-        .map(
-          (file) => {
-            const fileName = path.basename(file);
-            
-            return new AttributeItem(
-              fileName,
-              vscode.TreeItemCollapsibleState.Collapsed,
-              file,
-              undefined,
-              attributeName
-            );
-          }
-        );
+    // Handle attribute in hierarchy mode (under namespace)
+    if (element.context?.startsWith('attribute|')) {
+      return this.getHierarchyModeFileChildren(element);
     }
 
-    // Special case FIRST: Show method signatures for interface attributes
-    // This is when clicking expand on an interface attribute leaf node
-    // Must check this BEFORE the general file-level attribute handler since they have similar conditions
-    if (element.file && element.label && (element.label.includes("interface '") || element.label?.startsWith("interface '"))) {
-      // Extract interface name from the label (e.g., "interface 'IUserRepository'" -> "IUserRepository")
-      const interfaceMatch = element.label.match(/interface\s+'([^']+)'/);
-      if (interfaceMatch) {
-        const interfaceName = interfaceMatch[1];
-        
-        try {
-          const content = fs.readFileSync(element.file, 'utf-8');
-          const methodSignatures = CSharpParser.extractInterfaceMethodSignatures(content, interfaceName);
-          
-          return methodSignatures.map((sig: InterfaceMethodSignature) => {
-            return new AttributeItem(
-              sig.signature,
-              vscode.TreeItemCollapsibleState.None,
-              element.file,
-              sig.line,  // Pass line number for navigation
-              `Interface member: ${sig.signature}`
-            );
-          });
-        } catch (error) {
-          console.error(`Error extracting interface methods from ${element.file}:`, error);
-          return [];
-        }
-      }
-    }
-
-    // Level 4 in hierarchy mode: show attribute occurrences in a file
-    // Level 3 in flat mode: show attribute occurrences in a file
+    // Handle attribute occurrences in a file
     if (element.file && element.context && !element.context.includes('|')) {
-      const attributeName = element.context;
-      const locations = this.attributeMap.get(attributeName) || [];
-      
-      // Filter locations to this file and sort by line number
-      const fileLocations = locations
-        .filter(loc => loc.file === element.file)
-        .sort((a, b) => a.attribute.line - b.attribute.line);
-
-      return fileLocations.map(
-        (location) => {
-          const attr = location.attribute;
-          
-          // Build a descriptive label showing what the attribute targets (without repeating attribute name)
-          let label: string;
-          
-          if (attr.targetElement === 'parameter' && attr.parameterName) {
-            // For parameters, show: parameter 'value'
-            label = `parameter '${attr.parameterName}'`;
-          } else if (attr.targetElement === 'return') {
-            // For return types, show: return value
-            label = `return value`;
-          } else if (attr.targetName && attr.targetElement && attr.targetElement !== 'unknown') {
-            // For other elements with names, show: property 'UserId'
-            label = `${attr.targetElement} '${attr.targetName}'`;
-          } else if (attr.targetElement && attr.targetElement !== 'unknown') {
-            // For elements without extracted names, show: property
-            label = attr.targetElement;
-          } else {
-            // Fallback to showing the attribute with arguments
-            label = attr.arguments
-              ? `${attr.name}(${attr.arguments})`
-              : attr.name;
-          }
-          
-          // Build comprehensive tooltip with attribute arguments and target info
-          let tooltipText = `Attribute: ${attr.fullName}`;
-          if (attr.arguments) {
-            tooltipText += `\nArguments: ${attr.arguments}`;
-          }
-          tooltipText += `\nTarget: ${this.getTargetDescription(attr)}`;
-          if (attr.targetName) {
-            tooltipText += `\nName: ${attr.targetName}`;
-          }
-          if (attr.targetElement === 'parameter') {
-            tooltipText += `\nParameter: ${attr.parameterType} ${attr.parameterName}`;
-          }
-          tooltipText += `\nLine: ${attr.line}`;
-
-          // Interface attributes are collapsible to show method signatures
-          const isCollapsible = attr.targetElement === 'interface' && attr.targetName;
-          
-          return new AttributeItem(
-            label,
-            isCollapsible ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-            element.file,
-            attr.line,
-            tooltipText
-          );
-        }
-      );
+      return this.getAttributeOccurrenceChildren(element);
     }
 
     return [];
+  }
+
+  /**
+   * Gets root-level namespace nodes (hierarchy mode)
+   */
+  private getRootNamespaceChildren(): AttributeItem[] {
+    const namespaceMap = new Map<string, AttributeLocation[]>();
+
+    // Collect all locations by namespace, respecting filters
+    for (const [attrName, locations] of this.attributeMap.entries()) {
+      if (!this.shouldShowAttribute(attrName)) {
+        continue;
+      }
+
+      for (const location of locations) {
+        const ns = this.extractNamespacePart(location.namespace);
+        if (!namespaceMap.has(ns)) {
+          namespaceMap.set(ns, []);
+        }
+        namespaceMap.get(ns)!.push(location);
+      }
+    }
+
+    // Return namespaces as root
+    return Array.from(namespaceMap.keys())
+      .sort()
+      .map(
+        (ns) => {
+          const nsLocations = namespaceMap.get(ns) || [];
+          return new AttributeItem(
+            `${ns} (${nsLocations.length})`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            undefined,
+            undefined,
+            `namespace|${ns}`
+          );
+        }
+      );
+  }
+
+  /**
+   * Gets root-level attribute nodes (flat mode)
+   */
+  private getRootFlatChildren(): AttributeItem[] {
+    return Array.from(this.attributeMap.keys())
+      .filter(attributeName => this.shouldShowAttribute(attributeName))
+      .sort()
+      .map(
+        (attributeName) => {
+          const locations = this.attributeMap.get(attributeName) || [];
+          return new AttributeItem(
+            `[${attributeName}] (${locations.length})`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            undefined,
+            undefined,
+            attributeName
+          );
+        }
+      );
+  }
+
+  /**
+   * Gets attributes within a specific namespace (hierarchy mode, level 2)
+   */
+  private getNamespaceAttributeChildren(element: AttributeItem): AttributeItem[] {
+    const ns = element.context!.replace('namespace|', '');
+    const attributeMap = new Map<string, AttributeLocation[]>();
+
+    // Collect attributes for this namespace, respecting filters
+    for (const [attrName, locations] of this.attributeMap.entries()) {
+      if (!this.shouldShowAttribute(attrName)) {
+        continue;
+      }
+
+      const nsLocations = locations.filter(loc => this.extractNamespacePart(loc.namespace) === ns);
+      if (nsLocations.length > 0) {
+        attributeMap.set(attrName, nsLocations);
+      }
+    }
+
+    // Return attributes in this namespace
+    return Array.from(attributeMap.keys())
+      .sort()
+      .map(
+        (attributeName) => {
+          const locations = attributeMap.get(attributeName) || [];
+          return new AttributeItem(
+            `[${attributeName}] (${locations.length})`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            undefined,
+            undefined,
+            `attribute|${attributeName}|${ns}`
+          );
+        }
+      );
+  }
+
+  /**
+   * Gets files for an attribute in flat mode (flat mode, level 2)
+   */
+  private getFlatModeFileChildren(element: AttributeItem): AttributeItem[] {
+    const attributeName = element.context!;
+    const locations = this.attributeMap.get(attributeName) || [];
+    const uniqueFiles = new Map<string, AttributeLocation[]>();
+
+    for (const location of locations) {
+      if (!uniqueFiles.has(location.file)) {
+        uniqueFiles.set(location.file, []);
+      }
+      uniqueFiles.get(location.file)!.push(location);
+    }
+
+    return Array.from(uniqueFiles.keys())
+      .sort()
+      .map(
+        (file) => {
+          const fileName = path.basename(file);
+          return new AttributeItem(
+            fileName,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            file,
+            undefined,
+            attributeName
+          );
+        }
+      );
+  }
+
+  /**
+   * Gets files for an attribute within a namespace (hierarchy mode, level 3)
+   */
+  private getHierarchyModeFileChildren(element: AttributeItem): AttributeItem[] {
+    const parts = element.context!.replace('attribute|', '').split('|');
+    const attributeName = parts[0];
+    const ns = parts[1];
+
+    const locations = this.attributeMap.get(attributeName) || [];
+    const fileMap = new Map<string, AttributeLocation[]>();
+
+    // Filter by namespace and group by file
+    for (const location of locations) {
+      if (this.extractNamespacePart(location.namespace) === ns) {
+        if (!fileMap.has(location.file)) {
+          fileMap.set(location.file, []);
+        }
+        fileMap.get(location.file)!.push(location);
+      }
+    }
+
+    return Array.from(fileMap.keys())
+      .sort()
+      .map(
+        (file) => {
+          const fileName = path.basename(file);
+          return new AttributeItem(
+            fileName,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            file,
+            undefined,
+            attributeName
+          );
+        }
+      );
+  }
+
+  /**
+   * Gets method signatures for an interface attribute
+   */
+  private getInterfaceMethodChildren(element: AttributeItem): AttributeItem[] {
+    const interfaceMatch = element.label!.match(/interface\s+'([^']+)'/);
+    if (!interfaceMatch) {
+      return [];
+    }
+
+    const interfaceName = interfaceMatch[1];
+
+    try {
+      const content = fs.readFileSync(element.file!, 'utf-8');
+      const methodSignatures = CSharpParser.extractInterfaceMethodSignatures(
+        content,
+        interfaceName
+      );
+
+      return methodSignatures.map((sig: InterfaceMethodSignature) => {
+        return new AttributeItem(
+          sig.signature,
+          vscode.TreeItemCollapsibleState.None,
+          element.file,
+          sig.line,
+          `Interface member: ${sig.signature}`
+        );
+      });
+    } catch (error) {
+      console.error(`Error extracting interface methods from ${element.file}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Gets attribute occurrences in a file (leaf level)
+   */
+  private getAttributeOccurrenceChildren(element: AttributeItem): AttributeItem[] {
+    const attributeName = element.context!;
+    const locations = this.attributeMap.get(attributeName) || [];
+
+    // Filter locations to this file and sort by line number
+    const fileLocations = locations
+      .filter(loc => loc.file === element.file)
+      .sort((a, b) => a.attribute.line - b.attribute.line);
+
+    return fileLocations.map((location) => {
+      const attr = location.attribute;
+
+      // Build descriptive label
+      const label = this.buildAttributeOccurrenceLabel(attr);
+
+      // Build comprehensive tooltip
+      const tooltipText = this.buildAttributeTooltip(attr);
+
+      // Interface attributes are collapsible
+      const isCollapsible =
+        attr.targetElement === 'interface' && attr.targetName;
+
+      return new AttributeItem(
+        label,
+        isCollapsible
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None,
+        element.file,
+        attr.line,
+        tooltipText
+      );
+    });
+  }
+
+  /**
+   * Builds the display label for an attribute occurrence
+   */
+  private buildAttributeOccurrenceLabel(attr: AttributeInfo): string {
+    if (attr.targetElement === 'parameter' && attr.parameterName) {
+      return `parameter '${attr.parameterName}'`;
+    }
+
+    if (attr.targetElement === 'return') {
+      return `return value`;
+    }
+
+    if (attr.targetName && attr.targetElement && attr.targetElement !== 'unknown') {
+      return `${attr.targetElement} '${attr.targetName}'`;
+    }
+
+    if (attr.targetElement && attr.targetElement !== 'unknown') {
+      return attr.targetElement;
+    }
+
+    return attr.arguments ? `${attr.name}(${attr.arguments})` : attr.name;
+  }
+
+  /**
+   * Builds the tooltip text for an attribute occurrence
+   */
+  private buildAttributeTooltip(attr: AttributeInfo): string {
+    let tooltipText = `Attribute: ${attr.fullName}`;
+
+    if (attr.arguments) {
+      tooltipText += `\nArguments: ${attr.arguments}`;
+    }
+
+    tooltipText += `\nTarget: ${this.getTargetDescription(attr)}`;
+
+    if (attr.targetName) {
+      tooltipText += `\nName: ${attr.targetName}`;
+    }
+
+    if (attr.targetElement === 'parameter') {
+      tooltipText += `\nParameter: ${attr.parameterType} ${attr.parameterName}`;
+    }
+
+    tooltipText += `\nLine: ${attr.line}`;
+
+    return tooltipText;
   }
 
   private getTargetDescription(attr: AttributeInfo): string {
