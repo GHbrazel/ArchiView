@@ -107,7 +107,39 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
 
   private parseFile(uri: vscode.Uri) {
     try {
-      const content = fs.readFileSync(uri.fsPath, 'utf-8');
+      const filePath = uri.fsPath;
+      
+      // First, remove all old entries for this file from the attribute map
+      for (const locations of this.attributeMap.values()) {
+        // Filter out entries that belong to this file
+        const filtered = locations.filter(loc => loc.file !== filePath);
+        
+        // Keep only the non-empty arrays to avoid empty entries
+        if (filtered.length === 0) {
+          // If no locations left for this attribute, we'll remove it during cleanup
+          continue;
+        }
+      }
+      
+      // Clean up empty attribute entries
+      const keysToRemove: string[] = [];
+      for (const [key, locations] of this.attributeMap.entries()) {
+        const filtered = locations.filter(loc => loc.file !== filePath);
+        if (filtered.length === 0) {
+          keysToRemove.push(key);
+        } else {
+          // Update with filtered array (without the current file)
+          this.attributeMap.set(key, filtered);
+        }
+      }
+      
+      // Remove empty attribute entries
+      for (const key of keysToRemove) {
+        this.attributeMap.delete(key);
+      }
+      
+      // Now parse and add the new content
+      const content = fs.readFileSync(filePath, 'utf-8');
       const attributes = CSharpParser.parseAttributes(content);
       const namespace = CSharpParser.extractNamespace(content);
 
@@ -119,13 +151,15 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
             this.attributeMap.set(key, []);
           }
           this.attributeMap.get(key)!.push({
-            file: uri.fsPath,
+            file: filePath,
             attribute: attr,
             namespace: namespace
           });
         }
 
-        console.log(`Found ${attributes.length} attributes in ${path.basename(uri.fsPath)}`);
+        console.log(`Found ${attributes.length} attributes in ${path.basename(filePath)}`);
+      } else {
+        console.log(`No attributes found in ${path.basename(filePath)}`);
       }
     } catch (error) {
       console.error(`Error parsing ${uri.fsPath}:`, error);
