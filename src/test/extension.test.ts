@@ -710,4 +710,286 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 keyNode = children.find((n: any) => n.context === 'Key');
                 assert.strictEqual(keyNode!.label.includes('(3)'), true, 'Should show 3 instances after additions');
         });
+
+        test('should preserve file node expansion in flat mode when counts change', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key attribute in 2 files
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'class', targetName: 'User' }, namespace: 'Models' },
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
+                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                // Get the Key attribute node
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode !== undefined, true, 'Key node should exist');
+                
+                // Get file children for Key
+                const fileChildren = provider.getChildren(keyNode);
+                assert.strictEqual(fileChildren.length, 2, 'Should have 2 files with Key');
+                
+                // Find Users.cs file node
+                const usersFileNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                assert.strictEqual(usersFileNode !== undefined, true, 'Users.cs should exist');
+                
+                const usersFileNodeId = (provider as any).getNodeId(usersFileNode);
+                assert.strictEqual(usersFileNodeId.includes('/test/Users.cs'), true, 'File node ID should be based on file path');
+                
+                // Simulate user expanding the file node
+                (provider as any).expandedNodeIds.add(usersFileNodeId);
+                assert.strictEqual((provider as any).expandedNodeIds.has(usersFileNodeId), true, 'File node should be marked as expanded');
+                
+                // Simulate attribute addition in different file
+                attributeMap.get('Key')!.push({
+                        file: '/test/Entity.cs',
+                        attribute: { fullName: 'Key', name: 'Key', line: 20, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' },
+                        namespace: 'Models'
+                });
+                
+                // Get updated children
+                const updatedFileChildren = provider.getChildren(keyNode);
+                assert.strictEqual(updatedFileChildren.length, 3, 'Should have 3 files now');
+                
+                // Find Users.cs in updated list
+                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
+                
+                const updatedUsersNodeId = (provider as any).getNodeId(updatedUsersNode);
+                assert.strictEqual(updatedUsersNodeId, usersFileNodeId, 'File node ID should remain stable');
+                assert.strictEqual((provider as any).expandedNodeIds.has(updatedUsersNodeId), true, 'Expanded state should be preserved');
+                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'File node should be marked as Expanded');
+        });
+
+        test('should preserve file node expansion in hierarchy mode', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set hierarchy mode
+                (provider as any).showNamespaceHierarchy = true;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key attribute in Models namespace, 2 files
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'MyProject.Models' },
+                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'MyProject.Models' }
+                ]);
+                
+                // Get root children (namespaces)
+                const rootChildren = provider.getChildren();
+                assert.strictEqual(rootChildren.length >= 1, true, 'Should have at least 1 namespace');
+                
+                // Find Models namespace
+                const modelsNode = rootChildren.find((n: any) => n.context === 'namespace|MyProject');
+                assert.strictEqual(modelsNode !== undefined, true, 'Models namespace should exist');
+                
+                // Get attributes under Models
+                const attributeChildren = provider.getChildren(modelsNode);
+                assert.strictEqual(attributeChildren.length >= 1, true, 'Should have at least 1 attribute under Models');
+                
+                // Find Key attribute
+                const keyAttrNode = attributeChildren.find((n: any) => n.context?.startsWith('attribute|Key'));
+                assert.strictEqual(keyAttrNode !== undefined, true, 'Key attribute should exist');
+                
+                // Get files under Key attribute
+                const fileChildren = provider.getChildren(keyAttrNode);
+                assert.strictEqual(fileChildren.length, 2, 'Should have 2 files');
+                
+                // Find and expand Users.cs
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                const usersNodeId = (provider as any).getNodeId(usersNode);
+                (provider as any).expandedNodeIds.add(usersNodeId);
+                
+                // Add new attribute in same namespace
+                attributeMap.set('Required', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required', line: 6, column: 0, arguments: '', targetElement: 'property', targetName: 'Name' }, namespace: 'MyProject.Models' }
+                ]);
+                
+                // Get updated files - Users.cs should still be expanded
+                const updatedFileChildren = provider.getChildren(keyAttrNode);
+                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+                
+                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
+                assert.strictEqual((provider as any).expandedNodeIds.has(usersNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
+        });
+
+        test('should remove file nodes when they have no more occurrences', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key attribute in 2 files
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
+                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                
+                let fileChildren = provider.getChildren(keyNode);
+                assert.strictEqual(fileChildren.length, 2, 'Initially 2 files');
+                
+                // Expand Users.cs
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                const usersNodeId = (provider as any).getNodeId(usersNode);
+                (provider as any).expandedNodeIds.add(usersNodeId);
+                
+                // Remove all occurrences from Users.cs
+                const updatedLocations = attributeMap.get('Key')!.filter((loc: any) => loc.file !== '/test/Users.cs');
+                attributeMap.set('Key', updatedLocations);
+                
+                // Get updated file children
+                fileChildren = provider.getChildren(keyNode);
+                assert.strictEqual(fileChildren.length, 1, 'Should now have only 1 file');
+                
+                // Users.cs should not be in the list
+                const usersStillThere = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                assert.strictEqual(usersStillThere, undefined, 'Users.cs should be removed when it has no occurrences');
+                
+                // The expanded set might still have the old ID, but it's not an issue since the node doesn't exist
+                // (In real usage, the tree would simply not show it)
+        });
+
+        test('should expand file node and show child occurrences', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key attribute with 2 occurrences in Users.cs
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'class', targetName: 'User' }, namespace: 'Models' },
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                // Get Key attribute node
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                
+                // Get file children
+                const fileChildren = provider.getChildren(keyNode);
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                
+                // Expand the file node
+                const usersNodeId = (provider as any).getNodeId(usersNode);
+                (provider as any).expandedNodeIds.add(usersNodeId);
+                
+                // Get the occurrences (children of file node)
+                const occurrenceChildren = provider.getChildren(usersNode);
+                
+                assert.strictEqual(occurrenceChildren.length, 2, 'Should have 2 occurrences in Users.cs');
+                assert.strictEqual(occurrenceChildren[0].line, 5, 'First occurrence at line 5');
+                assert.strictEqual(occurrenceChildren[1].line, 10, 'Second occurrence at line 10');
+        });
+
+        test('should preserve file node expansion when other attributes are added', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key attribute
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                // Get and expand Users.cs under Key
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                const fileChildren = provider.getChildren(keyNode);
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                
+                const usersNodeId = (provider as any).getNodeId(usersNode);
+                (provider as any).expandedNodeIds.add(usersNodeId);
+                
+                // Now add a different attribute to the same file
+                attributeMap.set('Required', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required', line: 6, column: 0, arguments: '', targetElement: 'property', targetName: 'Name' }, namespace: 'Models' }
+                ]);
+                
+                // Get updated children - Users should still be expanded under Key
+                const updatedKeyNode = provider.getChildren().find((n: any) => n.context === 'Key');
+                const updatedFileChildren = provider.getChildren(updatedKeyNode);
+                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+                
+                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
+                assert.strictEqual((provider as any).expandedNodeIds.has(usersNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
+        });
+
+        test('should have correct file node ID format', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                const fileChildren = provider.getChildren(keyNode);
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                
+                const nodeId = (provider as any).getNodeId(usersNode);
+                
+                // File node ID should have format: file:path:attr:attributeName
+                assert.strictEqual(nodeId.startsWith('file:'), true, 'File node ID should start with "file:"');
+                assert.strictEqual(nodeId.includes('Users.cs'), true, 'File node ID should contain filename');
+                assert.strictEqual(nodeId.includes(':attr:Key'), true, 'File node ID should include attribute name');
+        });
+
+        test('should handle multiple files with same attribute expanded/collapsed independently', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Setup: Key in 2 files
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
+                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
+                ]);
+                
+                const rootChildren = provider.getChildren();
+                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+                const fileChildren = provider.getChildren(keyNode);
+                
+                // Expand only Users.cs
+                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+                const usersNodeId = (provider as any).getNodeId(usersNode);
+                (provider as any).expandedNodeIds.add(usersNodeId);
+                
+                // Get updated file children
+                const updatedFileChildren = provider.getChildren(keyNode);
+                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+                const updatedProductNode = updatedFileChildren.find((n: any) => n.file === '/test/Product.cs');
+                
+                // Users should be expanded, Product collapsed
+                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Users should be Expanded');
+                assert.strictEqual(updatedProductNode.collapsibleState, vscode.TreeItemCollapsibleState.Collapsed, 'Product should be Collapsed');
+        });
 });
+
+

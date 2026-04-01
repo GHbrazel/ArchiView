@@ -74,6 +74,12 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
    * Uses context (stable identifier) rather than label (which includes count that changes)
    */
   private getNodeId(element: AttributeItem): string {
+    // For file nodes, create a unique ID combining attribute and file
+    // File nodes have element.file AND context without '|'
+    if (element.file && element.context && !element.context.includes('|')) {
+      return `file:${element.file}:attr:${element.context}`;
+    }
+    
     // Use context as the primary stable identifier
     if (element.context) {
       return element.context;
@@ -418,9 +424,12 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map(
         (file) => {
           const fileName = path.basename(file);
+          const fileNodeId = `file:${file}:attr:${attributeName}`;
+          const wasExpanded = this.expandedNodeIds.has(fileNodeId);
+          
           return new AttributeItem(
             fileName,
-            vscode.TreeItemCollapsibleState.Collapsed,
+            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
             file,
             undefined,
             attributeName
@@ -455,9 +464,12 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map(
         (file) => {
           const fileName = path.basename(file);
+          const fileNodeId = `file:${file}:attr:${attributeName}`;
+          const wasExpanded = this.expandedNodeIds.has(fileNodeId);
+          
           return new AttributeItem(
             fileName,
-            vscode.TreeItemCollapsibleState.Collapsed,
+            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
             file,
             undefined,
             attributeName
