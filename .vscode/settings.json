@@ -14,6 +14,7 @@
   	"editor.codeActionsOnSave": {
 	"source.fixAll.eslint": "explicit"
 	},
-  	"eslint.run": "onSave",
+	"eslint.run": "onSave",
+	"FSharp.suggestGitignore": false,
 
 }
