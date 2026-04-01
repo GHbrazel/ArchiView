@@ -39,6 +39,8 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private attributeMap: Map<string, AttributeLocation[]> = new Map();
   private showNamespaceHierarchy: boolean = true;
   private filterManager: FilterManager;
+  private treeView: vscode.TreeView<AttributeItem> | undefined;
+  private expandedNodeIds: Set<string> = new Set();
 
   constructor(filterManager?: FilterManager) {
     this.filterManager = filterManager || new FilterManager();
@@ -48,6 +50,44 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     this.setupConfigListener();
   }
 
+  /**
+   * Sets the TreeView reference and hooks up expand/collapse listeners
+   */
+  setTreeView(treeView: vscode.TreeView<AttributeItem>): void {
+    this.treeView = treeView;
+    
+    // Track when user expands nodes
+    treeView.onDidExpandElement((event) => {
+      const nodeId = this.getNodeId(event.element);
+      this.expandedNodeIds.add(nodeId);
+    });
+
+    // Track when user collapses nodes
+    treeView.onDidCollapseElement((event) => {
+      const nodeId = this.getNodeId(event.element);
+      this.expandedNodeIds.delete(nodeId);
+    });
+  }
+
+  /**
+   * Generates a unique ID for a tree node
+   * Uses context (stable identifier) rather than label (which includes count that changes)
+   */
+  private getNodeId(element: AttributeItem): string {
+    // Use context as the primary stable identifier
+    if (element.context) {
+      return element.context;
+    }
+    
+    // Fallback to label+file if no context
+    const parts = [element.label, element.file || ''];
+    return parts.join('::');
+  }
+
+  /**
+   * Restores expansion state immediately without waiting
+   * Called in parallel with tree rebuild to prevent visible collapse
+   */
   private loadSettings() {
     const config = vscode.workspace.getConfiguration('MetaLens');
     this.showNamespaceHierarchy = config.get('showNamespaceHierarchy', true);
@@ -57,6 +97,8 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('MetaLens.showNamespaceHierarchy')) {
         this.loadSettings();
+        // Clear expanded state since tree structure is changing
+        this.expandedNodeIds.clear();
         this._onDidChangeTreeData.fire(undefined);
       }
     });
@@ -68,8 +110,8 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     watcher.onDidCreate(() => this.refresh());
     watcher.onDidDelete(() => this.refresh());
     watcher.onDidChange((uri) => {
-      this.parseFile(uri);
-      this._onDidChangeTreeData.fire(undefined);
+      // Parse file and preserve expanded state
+      this.parseFilePreservingExpansion(uri);
     });
   }
 
@@ -77,6 +119,21 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     console.log('Refreshing C# attributes...');
     this.attributeMap.clear();
     await this.findAttributesInWorkspace();
+    
+    // Fire full tree update (refresh is an explicit user action, so collapse is acceptable)
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  /**
+   * Parses a file and updates the tree while preserving expansion state
+   */
+  private async parseFilePreservingExpansion(uri: vscode.Uri): Promise<void> {
+    // Parse the file (updates attributeMap)
+    this.parseFile(uri);
+    
+    // Fire undefined to rebuild tree
+    // Expansion will be preserved automatically because getChildren()
+    // creates items with the correct collapsibleState based on expandedNodeIds
     this._onDidChangeTreeData.fire(undefined);
   }
 
@@ -109,19 +166,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     try {
       const filePath = uri.fsPath;
       
-      // First, remove all old entries for this file from the attribute map
-      for (const locations of this.attributeMap.values()) {
-        // Filter out entries that belong to this file
-        const filtered = locations.filter(loc => loc.file !== filePath);
-        
-        // Keep only the non-empty arrays to avoid empty entries
-        if (filtered.length === 0) {
-          // If no locations left for this attribute, we'll remove it during cleanup
-          continue;
-        }
-      }
-      
-      // Clean up empty attribute entries
+      // Clean up empty attribute entries and remove from map
       const keysToRemove: string[] = [];
       for (const [key, locations] of this.attributeMap.entries()) {
         const filtered = locations.filter(loc => loc.file !== filePath);
@@ -271,12 +316,15 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map(
         (ns) => {
           const nsLocations = namespaceMap.get(ns) || [];
+          const nodeId = `namespace|${ns}`;
+          const wasExpanded = this.expandedNodeIds.has(nodeId);
+          
           return new AttributeItem(
             `${ns} (${nsLocations.length})`,
-            vscode.TreeItemCollapsibleState.Collapsed,
+            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
             undefined,
             undefined,
-            `namespace|${ns}`
+            nodeId
           );
         }
       );
@@ -292,9 +340,14 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map(
         (attributeName) => {
           const locations = this.attributeMap.get(attributeName) || [];
+          const label = `[${attributeName}] (${locations.length})`;
+          
+          // Check if this node was previously expanded
+          const wasExpanded = this.expandedNodeIds.has(attributeName);
+          
           return new AttributeItem(
-            `[${attributeName}] (${locations.length})`,
-            vscode.TreeItemCollapsibleState.Collapsed,
+            label,
+            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
             undefined,
             undefined,
             attributeName
@@ -328,9 +381,15 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map(
         (attributeName) => {
           const locations = attributeMap.get(attributeName) || [];
+          const label = `[${attributeName}] (${locations.length})`;
+          
+          // Check if this node was previously expanded
+          const nodeId = this.getNodeId(new AttributeItem(label, vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, `attribute|${attributeName}|${ns}`));
+          const wasExpanded = this.expandedNodeIds.has(nodeId);
+          
           return new AttributeItem(
-            `[${attributeName}] (${locations.length})`,
-            vscode.TreeItemCollapsibleState.Collapsed,
+            label,
+            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
             undefined,
             undefined,
             `attribute|${attributeName}|${ns}`

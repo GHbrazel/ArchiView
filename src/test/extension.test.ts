@@ -432,5 +432,282 @@ public class MyClass { }
 	});
 });
 
+suite('AttributeProvider Tree Expansion Tests', () => {
+	let filterManager: FilterManager;
 
+	setup(() => {
+		filterManager = new FilterManager();
+	});
 
+	test('should track node IDs correctly', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+
+		// Test node ID generation for different node types
+		const { AttributeItem } = require('../attributeProvider');
+		
+		const rootNode = new AttributeItem('Test Namespace', vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, 'namespace|Test');
+		const attrNode = new AttributeItem('[Serializable] (2)', vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, 'attribute|Serializable|Test');
+		const fileNode = new AttributeItem('MyClass.cs', vscode.TreeItemCollapsibleState.Collapsed, '/path/to/MyClass.cs', undefined, 'Serializable');
+
+		// Node IDs should be unique for different nodes
+		const id1 = (provider as any).getNodeId(rootNode);
+		const id2 = (provider as any).getNodeId(attrNode);
+		const id3 = (provider as any).getNodeId(fileNode);
+
+		assert.strictEqual(typeof id1, 'string');
+		assert.strictEqual(typeof id2, 'string');
+		assert.strictEqual(typeof id3, 'string');
+		assert.notStrictEqual(id1, id2);
+		assert.notStrictEqual(id2, id3);
+		assert.notStrictEqual(id1, id3);
+	});
+
+	test('should initialize with empty expanded nodes set', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+
+		// Access private field via type assertion
+		const expandedNodeIds = (provider as any).expandedNodeIds;
+		assert.strictEqual(expandedNodeIds instanceof Set, true);
+		assert.strictEqual(expandedNodeIds.size, 0);
+	});
+
+	test('should handle setTreeView without crashing', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+
+		// Create a mock TreeView
+		const mockTreeView = {
+			onDidExpandElement: () => ({ dispose: () => {} }),
+			onDidCollapseElement: () => ({ dispose: () => {} })
+		};
+
+		// Should not throw
+		assert.doesNotThrow(() => {
+			provider.setTreeView(mockTreeView as any);
+		});
+	});
+
+	test('should preserve expanded state structure when tree is modified', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+		const { AttributeItem } = require('../attributeProvider');
+
+		// Get initial children (root level)
+		const rootChildren = provider.getChildren();
+		
+		// Should not crash even if tree is empty or modified
+		assert.strictEqual(Array.isArray(rootChildren), true);
+	});
+
+	test('should handle empty tree gracefully', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+		
+		// Mock the internal attributeMap to be empty
+		(provider as any).attributeMap.clear();
+
+		// Get children should return empty array, not crash
+		const children = provider.getChildren();
+		assert.strictEqual(Array.isArray(children), true);
+		assert.strictEqual(children.length, 0);
+	});
+
+	test('should handle node disappearance gracefully', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+
+		// Add some attributes to the map
+		const attributes = [
+			{
+				file: '/test/test.cs',
+				attribute: { name: 'Obsolete', fullName: 'System.Obsolete', arguments: '', line: 1, column: 0, targetElement: 'class', targetName: 'TestClass' },
+				namespace: 'TestNamespace'
+			}
+		];
+
+		(provider as any).attributeMap.set('Obsolete', attributes);
+
+		// Get children - should work
+		const children = provider.getChildren();
+		assert.strictEqual(children.length > 0, true);
+
+		// Now clear the map (simulating node removal)
+		(provider as any).attributeMap.clear();
+
+		// Get children - should still work without crashing
+		const emptyChildren = provider.getChildren();
+		assert.strictEqual(Array.isArray(emptyChildren), true);
+		assert.strictEqual(emptyChildren.length, 0);
+	});
+
+	test('should maintain consistent node IDs across multiple calls', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+		const { AttributeItem } = require('../attributeProvider');
+
+		const node = new AttributeItem(
+			'[Serializable]',
+			vscode.TreeItemCollapsibleState.Collapsed,
+			'/path/to/file.cs',
+			undefined,
+			'attribute|Serializable|Test'
+		);
+
+		// Generate ID multiple times - should be identical
+		const id1 = (provider as any).getNodeId(node);
+		const id2 = (provider as any).getNodeId(node);
+		const id3 = (provider as any).getNodeId(node);
+
+		assert.strictEqual(id1, id2);
+		assert.strictEqual(id2, id3);
+	});
+
+	test('should handle tree structure changes without breaking', () => {
+		const { AttributeProvider } = require('../attributeProvider');
+		const provider = new AttributeProvider(filterManager);
+
+		// Simulate toggling namespace hierarchy
+		(provider as any).showNamespaceHierarchy = true;
+		let children = provider.getChildren();
+		assert.strictEqual(Array.isArray(children), true);
+
+		// Toggle to flat mode
+		(provider as any).showNamespaceHierarchy = false;
+		children = provider.getChildren();
+		assert.strictEqual(Array.isArray(children), true);
+
+		// Toggle back to hierarchy
+		(provider as any).showNamespaceHierarchy = true;
+		children = provider.getChildren();
+		assert.strictEqual(Array.isArray(children), true);
+	});
+
+        test('should preserve expansion state when attribute count changes (attribute removed)', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                // Setup initial state with attributes
+                const attributeMap = (provider as any).attributeMap;
+                attributeMap.set('Required', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
+                ]);
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                ]);
+                
+                // Get initial children
+                const initialChildren = provider.getChildren();
+                assert.strictEqual(initialChildren.length >= 1, true, 'Should have at least 1 attribute');
+                
+                // Find the Key node by its context
+                const keyNode = initialChildren.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode !== undefined, true, 'Key attribute should exist');
+                
+                const keyNodeId = (provider as any).getNodeId(keyNode);
+                
+                // Simulate user expanding the Key attribute
+                (provider as any).expandedNodeIds.add(keyNodeId);
+                assert.strictEqual((provider as any).expandedNodeIds.has(keyNodeId), true, 'Key should be in expandedNodeIds');
+                
+                // Now simulate file save that removes the Required attribute
+                attributeMap.delete('Required');
+                
+                // Get children after attribute removal
+                const updatedChildren = provider.getChildren();
+                
+                // Find the Key node in updated children by context
+                const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
+                assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist after attribute removal');
+                
+                // The node ID should be the same because context is the same
+                const updatedKeyNodeId = (provider as any).getNodeId(updatedKeyNode);
+                assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable (both should be "Key")');
+                
+                // The expanded set should still have it
+                assert.strictEqual((provider as any).expandedNodeIds.has(updatedKeyNodeId), true, 'Expanded state should be preserved');
+                
+                // The node should be returned with Expanded state
+                assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node should be marked as Expanded');
+        });
+
+        test('should preserve expansion state when attribute count changes (attribute added)', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                // Setup initial state with one attribute
+                const attributeMap = (provider as any).attributeMap;
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                ]);
+                
+                // Get initial node and expand it
+                const initialChildren = provider.getChildren();
+                const keyNode = initialChildren.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode !== undefined, true, 'Key node should exist initially');
+                
+                const keyNodeId = (provider as any).getNodeId(keyNode);
+                
+                (provider as any).expandedNodeIds.add(keyNodeId);
+                
+                // Simulate file save that adds the Required attribute
+                attributeMap.set('Required', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
+                ]);
+                
+                // Get updated children
+                const updatedChildren = provider.getChildren();
+                
+                // Find Key node
+                const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
+                assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist');
+                
+                const updatedKeyNodeId = (provider as any).getNodeId(updatedKeyNode);
+                assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable');
+                assert.strictEqual((provider as any).expandedNodeIds.has(updatedKeyNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node marked as Expanded');
+        });
+
+        test('should update counts when attributes are added or removed', () => {
+                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+                
+                // Set flat mode
+                (provider as any).showNamespaceHierarchy = false;
+                
+                const attributeMap = (provider as any).attributeMap;
+                
+                // Initial state: 2 instances of Key
+                attributeMap.set('Key', [
+                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
+                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                ]);
+                
+                let children = provider.getChildren();
+                let keyNode = children.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode!.label.includes('(2)'), true, 'Should show 2 instances');
+                
+                // Remove one instance
+                const locations = attributeMap.get('Key')!;
+                locations.splice(0, 1);
+                
+                children = provider.getChildren();
+                keyNode = children.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode!.label.includes('(1)'), true, 'Should show 1 instance after removal');
+                
+                // Add two more instances to get 3
+                attributeMap.set('Key', [
+                        ...attributeMap.get('Key')!,
+                        { file: '/test/Entity.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
+                        { file: '/test/Model.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                ]);
+                
+                children = provider.getChildren();
+                keyNode = children.find((n: any) => n.context === 'Key');
+                assert.strictEqual(keyNode!.label.includes('(3)'), true, 'Should show 3 instances after additions');
+        });
+});

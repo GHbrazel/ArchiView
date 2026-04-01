@@ -16,7 +16,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Create and register the tree data provider for C# attributes
 	const attributeProvider = new AttributeProvider(filterManager);
-	vscode.window.registerTreeDataProvider('meta-lens-sidebar', attributeProvider);
+	const treeView = vscode.window.createTreeView('meta-lens-sidebar', {
+		treeDataProvider: attributeProvider,
+		showCollapseAll: true
+	});
+
+	// Set the tree view reference in the provider for expansion tracking
+	attributeProvider.setTreeView(treeView);
 
 	// Register refresh command
 	const refreshCommand = vscode.commands.registerCommand('MetaLens.refresh', () => {
