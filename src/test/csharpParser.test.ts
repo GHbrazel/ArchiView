@@ -50,7 +50,6 @@ namespace TestNamespace
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
 			assert.strictEqual(attributes.length, 2);
-			// Both attributes should have targetName 'User'
 			const serializableAttr = attributes.find(a => a.name === 'Serializable');
 			const tableAttr = attributes.find(a => a.name === 'Table');
 			
@@ -277,7 +276,6 @@ namespace TestNamespace
 			assert.ok(names.includes('Key'), 'Should include Key');
 			assert.ok(names.includes('Required'), 'Should include Required');
 			assert.ok(names.includes('StringLength'), 'Should include StringLength');
-			// Ensure no "0" or "1" attributes
 			assert.ok(!names.includes('0'), 'Should not include 0 as attribute');
 			assert.ok(!names.includes('1'), 'Should not include 1 as attribute');
 		});
@@ -314,7 +312,6 @@ namespace AnotherExampleCsProject.Controllers
 			const attributes = CSharpParser.parseAttributes(code);
 			assert.strictEqual(attributes.length, 5, 'Should detect 5 attributes only');
 			const attributeNames = attributes.map(a => a.name);
-			// Real attributes
 			assert.ok(attributeNames.includes('Authorize'), 'Should include Authorize');
 			assert.ok(attributeNames.includes('Cacheable'), 'Should include Cacheable');
 			assert.ok(attributeNames.includes('Loggable'), 'Should include Loggable');
@@ -371,7 +368,6 @@ namespace TestNamespace
 	}
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
-			// Should detect the attribute (may or may not handle generic syntax perfectly, but shouldn't crash)
 			assert.ok(attributes.length > 0, 'Should detect at least one attribute');
 		});
 
@@ -439,7 +435,6 @@ namespace TestNamespace
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
 			assert.strictEqual(attributes.length, 2);
-			// Line numbers should be tracked (starting from 0 or 1 depending on implementation)
 			assert.ok(attributes[0].line >= 2, 'First attribute line should be >= 2');
 			assert.ok(attributes[1].line >= 5, 'Second attribute line should be >= 5');
 		});
@@ -542,7 +537,6 @@ namespace TestNamespace
 	}
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
-			// Should detect the NotNull parameter attribute
 			const notNullAttr = attributes.find(a => a.name === 'NotNull' && a.targetElement === 'parameter');
 			assert.ok(notNullAttr, 'Should detect NotNull parameter attribute');
 			assert.strictEqual(notNullAttr?.parameterType, 'object?');
@@ -859,10 +853,7 @@ namespace TestNamespace
 	}
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
-			// Type parameter attributes are advanced; check if detected
 			const names = attributes.map(a => a.name);
-			// These may or may not be detected depending on parser sophistication
-			// This test checks if parser handles them without crashing
 			assert.ok(Array.isArray(attributes), 'Should return array without crashing');
 		});
 	});
@@ -897,8 +888,6 @@ namespace TestNamespace
 	}
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
-			// Should detect multiple attributes at different levels
-			// Attributes: Serializable, Table, Key, Column, StringLength, Obsolete, NotNull
 			assert.ok(attributes.length >= 7, 'Should detect class, field, property, method, and return attributes');
 			const names = attributes.map(a => a.name);
 			assert.ok(names.includes('Serializable'), 'Should include class attribute');
@@ -943,7 +932,6 @@ namespace TestNamespace
 }`;
 			const attributes = CSharpParser.parseAttributes(code);
 			
-			// Should detect: Cacheable, Loggable, NotNull (return), Range (parameter)
 			assert.ok(attributes.length >= 4, `Expected at least 4 attributes, got ${attributes.length}`);
 			
 			const names = attributes.map(a => a.name);
@@ -1207,7 +1195,6 @@ namespace AnotherExampleCsProject.Middleware
 			const attributes = CSharpParser.parseAttributes(code);
 			const names = attributes.map(a => a.name);
 			
-			// Should detect assembly-level attributes
 			assert.ok(names.length >= 2, 'Should detect assembly and module attributes');
 			assert.ok(names.includes('AssemblyVersion') || attributes.some(a => a.fullName.includes('AssemblyVersion')), 
 				'Should detect AssemblyVersion');
@@ -1404,7 +1391,6 @@ namespace TestNamespace
 			assert.ok(signatures.length >= 2, 'Should skip attributes and extract methods');
 			assert.ok(signatures.some(s => s.signature.includes('Log')), 'Should include Log method');
 			assert.ok(signatures.some(s => s.signature.includes('LogAsync')), 'Should include LogAsync method');
-			// Verify attributes are not in the signature
 			assert.ok(!signatures.some(s => s.signature.includes('[Obsolete')), 'Should not include attribute in signature');
 			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
 		});
@@ -1443,14 +1429,12 @@ namespace TestNamespace
 		Task<PaymentResult> ProcessPaymentAsync(decimal amount);
 	}
 }`;
-			// Test that attributes are properly detected
 			const attributes = CSharpParser.parseAttributes(code);
 			const names = attributes.map(a => a.name);
 			assert.ok(names.includes('ServiceContract'), 'Should detect ServiceContract attribute');
 			assert.ok(names.includes('Serializable'), 'Should detect Serializable attribute');
 			assert.ok(names.includes('OperationContract'), 'Should detect OperationContract attribute');
 			
-			// Test that method signatures are extracted despite attributes
 			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IPaymentService');
 			assert.ok(signatures.length >= 2, 'Should extract methods ignoring attributes');
 			assert.ok(signatures.some(s => s.signature.includes('ProcessPayment')), 'Should include ProcessPayment');
@@ -1493,7 +1477,6 @@ namespace TestNamespace
 	}
 }`;
 			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INotificationService');
-			// Events may or may not be included depending on regex, but methods should be
 			assert.ok(signatures.some(s => s.signature.includes('Subscribe')), 'Should include Subscribe method');
 			assert.ok(signatures.some(s => s.signature.includes('Unsubscribe')), 'Should include Unsubscribe method');
 			assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');

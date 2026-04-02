@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CSharpParser, AttributeInfo, InterfaceMethodSignature } from './csharpParser';
+import { CSharpParser,  InterfaceMethodSignature } from './csharpParser';
 import { FilterManager } from './filterManager';
 import { ExpansionManager } from './expansionManager';
 import { AttributeRepository, AttributeLocation } from './attributeRepository';
@@ -151,7 +151,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
    */
   async refresh(): Promise<void> {
     console.log('Refreshing C# attributes...');
-    this.repository.clear();
+    this.repository.clearAllData();
     await this.findAttributesInWorkspace();
     this._onDidChangeTreeData.fire(undefined);
   }
@@ -162,10 +162,8 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private setupFileWatchers(): void {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.cs');
     
-    // Full refresh on new files
     watcher.onDidCreate(() => this.refresh());
     
-    // Full refresh on deleted files
     watcher.onDidDelete(() => this.refresh());
     
     // Incremental update on changes (preserves expansion)
@@ -174,26 +172,17 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     });
   }
 
-  /**
-   * Setup listener for settings changes
-   */
   private setupSettingsListener(): void {
     this.settingsManager.onSettingsChangedEvent(() => {
       this._onDidChangeTreeData.fire(undefined);
     });
   }
 
-  /**
-   * Parse a single file and update the tree view
-   */
   private parseFileAndUpdateTree(uri: vscode.Uri): void {
     this.parseFile(uri);
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  /**
-   * Find and parse attributes in all workspace files
-   */
   private async findAttributesInWorkspace(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
@@ -252,10 +241,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     }
   }
 
-  /**
-   * Extract simplified namespace name from full namespace path
-   */
-  private extractNamespacePart(fullNamespace: string | null): string {
+  private extractInitialNamespacePart(fullNamespace: string | null): string {
     if (!fullNamespace) {
       return 'No Namespace';
     }
@@ -263,23 +249,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     return parts[0];
   }
 
-  /**
-   * Check if an attribute should be displayed based on current filters
-   */
   private shouldShowAttribute(attributeName: string): boolean {
-    if (!this.filterManager.hasFilters()) {
+    if (!this.filterManager.hasActiveFilters()) {
       return true;
     }
     return this.filterManager.isAttributeSelected(attributeName);
   }
 
-  // ========================
-  // Tree Building Methods
-  // ========================
-
-  /**
-   * Build root-level namespace nodes (hierarchy mode)
-   */
   private getRootNamespaceChildren(): AttributeItem[] {
     const namespaceMap = new Map<string, AttributeLocation[]>();
 
@@ -290,7 +266,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       }
 
       for (const location of locations) {
-        const ns = this.extractNamespacePart(location.namespace);
+        const ns = this.extractInitialNamespacePart(location.namespace);
         if (!namespaceMap.has(ns)) {
           namespaceMap.set(ns, []);
         }
@@ -307,9 +283,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       });
   }
 
-  /**
-   * Build root-level attribute nodes (flat mode)
-   */
+
   private getRootFlatChildren(): AttributeItem[] {
     return Array.from(this.repository.getAllAttributeNames())
       .filter(attr => this.shouldShowAttribute(attr))
@@ -320,9 +294,6 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       });
   }
 
-  /**
-   * Build attribute nodes within a namespace (hierarchy mode, level 2)
-   */
   private getNamespaceAttributeChildren(element: AttributeItem): AttributeItem[] {
     const ns = element.context!.replace('namespace|', '');
     const attributeMap = new Map<string, AttributeLocation[]>();
@@ -333,7 +304,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
         continue;
       }
 
-      const nsLocations = locations.filter(loc => this.extractNamespacePart(loc.namespace) === ns);
+      const nsLocations = locations.filter(loc => this.extractInitialNamespacePart(loc.namespace) === ns);
       if (nsLocations.length > 0) {
         attributeMap.set(attrName, nsLocations);
       }
@@ -348,9 +319,6 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       });
   }
 
-  /**
-   * Build file nodes for an attribute (flat mode, level 2)
-   */
   private getFlatModeFileChildren(element: AttributeItem): AttributeItem[] {
     const attributeName = element.context!;
     const locations = this.repository.getAttributeLocations(attributeName);
@@ -370,9 +338,6 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       .map((file) => this.treeItemBuilder.buildFileItem(file, attributeName));
   }
 
-  /**
-   * Build file nodes for an attribute within a namespace (hierarchy mode, level 3)
-   */
   private getHierarchyModeFileChildren(element: AttributeItem): AttributeItem[] {
     const parts = element.context!.replace('attribute|', '').split('|');
     const attributeName = parts[0];
@@ -383,7 +348,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
 
     // Filter by namespace and group by file
     for (const location of locations) {
-      if (this.extractNamespacePart(location.namespace) === ns) {
+      if (this.extractInitialNamespacePart(location.namespace) === ns) {
         if (!fileMap.has(location.file)) {
           fileMap.set(location.file, []);
         }
@@ -424,14 +389,10 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     }
   }
 
-  /**
-   * Build occurrence nodes (attribute instances) within a file
-   */
   private getAttributeOccurrenceChildren(element: AttributeItem): AttributeItem[] {
     const attributeName = element.context!;
     const locations = this.repository.getAttributeLocations(attributeName);
 
-    // Filter to this file and sort by line
     const fileLocations = locations
       .filter(loc => loc.file === element.file)
       .sort((a, b) => a.attribute.line - b.attribute.line);

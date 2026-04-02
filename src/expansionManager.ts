@@ -29,69 +29,46 @@ export class ExpansionManager {
     return parts.join('::');
   }
 
-  /**
-   * Mark a node as expanded
-   */
-  markExpanded(element: AttributeItem | string): void {
+  markNodeAsExpanded(element: AttributeItem | string): void {
     const nodeId = typeof element === 'string' ? element : this.getNodeId(element);
     this.expandedNodeIds.add(nodeId);
   }
 
-  /**
-   * Mark a node as collapsed
-   */
-  markCollapsed(element: AttributeItem | string): void {
+  markNodeAsCollapsed(element: AttributeItem | string): void {
     const nodeId = typeof element === 'string' ? element : this.getNodeId(element);
     this.expandedNodeIds.delete(nodeId);
   }
 
-  /**
-   * Check if a node should be expanded
-   */
   isExpanded(element: AttributeItem | string): boolean {
     const nodeId = typeof element === 'string' ? element : this.getNodeId(element);
     return this.expandedNodeIds.has(nodeId);
   }
 
-  /**
-   * Get the collapsible state for a tree item
-   */
   getCollapsibleState(element: AttributeItem, hasChildren: boolean): vscode.TreeItemCollapsibleState {
-    // If it can't have children, it's not collapsible
     if (!hasChildren) {
       return vscode.TreeItemCollapsibleState.None;
     }
 
-    // Return Expanded or Collapsed based on tracking
     return this.isExpanded(element)
       ? vscode.TreeItemCollapsibleState.Expanded
       : vscode.TreeItemCollapsibleState.Collapsed;
   }
 
-  /**
-   * Setup listeners for tree view expand/collapse events
-   */
   setupTreeViewListeners(treeView: vscode.TreeView<AttributeItem>): void {
     treeView.onDidExpandElement((event) => {
-      this.markExpanded(event.element);
+      this.markNodeAsExpanded(event.element);
     });
 
     treeView.onDidCollapseElement((event) => {
-      this.markCollapsed(event.element);
+      this.markNodeAsCollapsed(event.element);
     });
   }
 
-  /**
-   * Clear all expansion state
-   */
-  clear(): void {
+  clearExpansionState(): void {
     this.expandedNodeIds.clear();
   }
 
-  /**
-   * Get all expanded node IDs (for testing/debugging)
-   */
-  getExpandedNodeIds(): Set<string> {
+  getAllExpandedNodeIds(): Set<string> {
     return new Set(this.expandedNodeIds);
   }
 }

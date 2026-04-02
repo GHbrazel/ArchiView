@@ -74,7 +74,7 @@ export class CSharpParser {
       const stackedAttributes = this.extractStackedAttributes(attributeText, lineIndex, targetName, lines);
       attributes.push(...stackedAttributes);
 
-      // Skip lines we've already processed
+      // Skip lines already processed
       if (endLineIndex > lineIndex) {
         lineIndex = endLineIndex;
       }
@@ -118,7 +118,7 @@ export class CSharpParser {
       }
     }
 
-    // If there are more opening parens than closing parens, we're inside a method signature
+    // If there are more opening parens than closing parens, inside a method signature
     if (openParens > closeParens) {
       return false;
     }
@@ -418,7 +418,7 @@ export class CSharpParser {
           lines,
           lineIndex
         );
-        const explicitAttrs = this.extractExplicitParameterAttributes(
+        const explicitAttrs = this.extractExplicitParameterAttributesWithTargetSpecifier(
           paramList,
           fullSignature,
           lines,
@@ -427,7 +427,7 @@ export class CSharpParser {
 
         attributes.push(...implicitAttrs, ...explicitAttrs);
 
-        // Skip lines we've processed in the signature
+        // Skip lines processed in the signature
         if (endLineIdx > lineIndex) {
           lineIndex = endLineIdx;
         }
@@ -464,9 +464,6 @@ export class CSharpParser {
     return { fullSignature, endLineIdx };
   }
 
-  /**
-   * Extracts implicit parameter attributes: [Attribute] Type Name
-   */
   private static extractImplicitParameterAttributes(
     paramList: string,
     fullSignature: string,
@@ -514,10 +511,7 @@ export class CSharpParser {
     return attributes;
   }
 
-  /**
-   * Extracts explicit parameter attributes with target specifiers
-   */
-  private static extractExplicitParameterAttributes(
+  private static extractExplicitParameterAttributesWithTargetSpecifier(
     paramList: string,
     fullSignature: string,
     lines: string[],
@@ -701,7 +695,7 @@ export class CSharpParser {
       if (!line.includes('(') && !line.includes('{') &&
           (line.match(/^[A-Za-z_][A-Za-z0-9_]*\s*[=,]/) ||
            line.match(/^[A-Za-z_][A-Za-z0-9_]*\s*$/))) {
-        // Verify we're in an enum context by looking backwards
+        // Verify in an enum context by looking backwards
         let foundEnumDecl = false;
         let foundOpenBrace = false;
         for (let j = i - 1; j >= Math.max(i - 30, 0); j--) {
@@ -713,21 +707,21 @@ export class CSharpParser {
           // Check for enum declaration
           if (prevLine.match(/^(public\s+)?(partial\s+)?enum\s+/)) {
             foundEnumDecl = true;
-            // If we found the enum decl AND saw an opening brace after it, we're good
+            // If found the enum decl AND saw an opening brace after it, we're good
             if (foundOpenBrace) {
               return 'enumMember';
             }
-            // Or if we just found enum decl by itself (brace might be inline or right after)
+            // Or if just found enum decl by itself (brace might be inline or right after)
             return 'enumMember';
           }
-          // Stop if we hit a closing brace or other structure end
+          // Stop if hit a closing brace or other structure end
           if (prevLine === '}' || prevLine.match(/^(class|interface|struct)\s+/)) {
             break;
           }
         }
       }
 
-      // If we hit a declaration line that didn't match, stop
+      // If declaration line that didn't match, stop
       if (line.includes('{') || line.includes(';')) {
         break;
       }
@@ -785,7 +779,7 @@ export class CSharpParser {
       // Pattern: identifier followed by = or , or optional whitespace
       const enumMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:[=,]|$)/);
       if (enumMatch && !line.includes('(')) {
-        // Verify we're likely in an enum context by looking back
+        // Verify if likely in an enum context by looking back
         let foundEnumDecl = false;
         let foundOpenBrace = false;
         for (let j = currentLineIndex; j >= Math.max(currentLineIndex - 30, 0); j--) {
@@ -798,7 +792,7 @@ export class CSharpParser {
           if (prevLine.match(/^(public\s+)?(partial\s+)?enum\s+/)) {
             return enumMatch[1];
           }
-          // Stop if we hit a closing brace or other structure
+          // Stop if hit a closing brace or other structure
           if (prevLine === '}' || prevLine.match(/^(class\s+|interface\s+|struct\s+)/)) {
             break;
           }
@@ -821,7 +815,7 @@ export class CSharpParser {
         return implicitMethodMatch[1];
       }
 
-      // Parameter - if we have [Validate(...)] type pattern, extract parameter name
+      // Parameter - if [Validate(...)] type pattern, extract parameter name
       // Look for: type paramName or type paramName,
       const paramMatch = line.match(/^[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[,)]/);
       if (paramMatch && line.includes(',') && !line.includes('class') && !line.includes('interface')) {
@@ -837,7 +831,7 @@ export class CSharpParser {
         }
       }
 
-      // If we found a declaration line but couldn't parse the name, stop searching
+      // If declaration line found but name parsing did not work, stop searching
       if (line.includes('{') || (line.includes('(') && line.includes(')')) || line.includes(';')) {
         break;
       }
@@ -911,7 +905,7 @@ export class CSharpParser {
       braceCount += (line.match(/{/g) || []).length;
       braceCount -= (line.match(/}/g) || []).length;
       
-      // Mark that we're in the interface once we hit the opening brace
+      // Mark interface once opening brace appears
       if (braceCount > 0) {
         inInterface = true;
       }
@@ -921,7 +915,7 @@ export class CSharpParser {
         break;
       }
       
-      // Skip lines before we find the opening brace
+      // Skip lines before finding the opening brace
       if (!inInterface) {
         continue;
       }
@@ -970,7 +964,6 @@ export class CSharpParser {
         
         // Only add if it's a valid signature and not a duplicate
         if (signature && !methodSignatures.some(m => m.signature === signature) && signature.length > 5) {
-          // Line numbers are 1-based for VS Code
           methodSignatures.push({
             signature,
             line: i + 1

@@ -3,7 +3,6 @@ import * as path from 'path';
 import { AttributeItem } from './attributeProvider';
 import { AttributeInfo, InterfaceMethodSignature } from './csharpParser';
 import { ExpansionManager } from './expansionManager';
-import * as fs from 'fs';
 
 /**
  * Builds and formats tree items for display
@@ -11,9 +10,6 @@ import * as fs from 'fs';
 export class TreeItemBuilder {
   constructor(private expansionManager: ExpansionManager) {}
 
-  /**
-   * Build a namespace tree item
-   */
   buildNamespaceItem(namespace: string, occurrenceCount: number): AttributeItem {
     const nodeId = `namespace|${namespace}`;
     const collapsibleState = this.expansionManager.isExpanded(
@@ -112,9 +108,6 @@ export class TreeItemBuilder {
     );
   }
 
-  /**
-   * Build the label for an attribute occurrence
-   */
   buildAttributeOccurrenceLabel(attr: AttributeInfo): string {
     if (attr.targetElement === 'interface' && attr.targetName) {
       return `interface '${attr.targetName}'`;
@@ -132,9 +125,6 @@ export class TreeItemBuilder {
     return label;
   }
 
-  /**
-   * Build the tooltip for an attribute occurrence
-   */
   buildAttributeTooltip(attr: AttributeInfo): string {
     const lines: string[] = [];
     

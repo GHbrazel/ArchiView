@@ -1,11 +1,7 @@
 import * as assert from 'assert';
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
 import * as vscode from 'vscode';
 import { FilterManager } from '../filterManager';
 
-// import * as myExtension from '../../extension';
 
 suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
@@ -24,33 +20,33 @@ suite('FilterManager Tests', () => {
 	});
 
 	test('should initialize with no filters', () => {
-		assert.strictEqual(filterManager.hasFilters(), false);
+		assert.strictEqual(filterManager.hasActiveFilters(), false);
 		assert.strictEqual(filterManager.getSelectedAttributes().size, 0);
 	});
 
 	test('should add a single attribute filter', () => {
-		filterManager.addAttribute('Serializable');
-		assert.strictEqual(filterManager.hasFilters(), true);
+		filterManager.addAttributeToFilter('Serializable');
+		assert.strictEqual(filterManager.hasActiveFilters(), true);
 		assert.strictEqual(filterManager.isAttributeSelected('Serializable'), true);
 	});
 
 	test('should remove an attribute filter', () => {
-		filterManager.addAttribute('Serializable');
-		filterManager.removeAttribute('Serializable');
-		assert.strictEqual(filterManager.hasFilters(), false);
+		filterManager.addAttributeToFilter('Serializable');
+		filterManager.removeAttributeFromFilter('Serializable');
+		assert.strictEqual(filterManager.hasActiveFilters(), false);
 	});
 
 	test('should toggle attribute selection', () => {
-		filterManager.toggleAttribute('Required');
+		filterManager.toggleAttributeInFilter('Required');
 		assert.strictEqual(filterManager.isAttributeSelected('Required'), true);
-		filterManager.toggleAttribute('Required');
+		filterManager.toggleAttributeInFilter('Required');
 		assert.strictEqual(filterManager.isAttributeSelected('Required'), false);
 	});
 
 	test('should handle multiple selected attributes', () => {
-		filterManager.addAttribute('Required');
-		filterManager.addAttribute('Serializable');
-		filterManager.addAttribute('Obsolete');
+		filterManager.addAttributeToFilter('Required');
+		filterManager.addAttributeToFilter('Serializable');
+		filterManager.addAttributeToFilter('Obsolete');
 		
 		const selected = filterManager.getSelectedAttributes();
 		assert.strictEqual(selected.size, 3);
@@ -69,11 +65,11 @@ suite('FilterManager Tests', () => {
 	});
 
 	test('should clear all filters', () => {
-		filterManager.addAttribute('Required');
-		filterManager.addAttribute('Serializable');
-		filterManager.clearFilters();
+		filterManager.addAttributeToFilter('Required');
+		filterManager.addAttributeToFilter('Serializable');
+		filterManager.clearAllFilters();
 		
-		assert.strictEqual(filterManager.hasFilters(), false);
+		assert.strictEqual(filterManager.hasActiveFilters(), false);
 		assert.strictEqual(filterManager.getSelectedAttributes().size, 0);
 	});
 
@@ -84,15 +80,15 @@ suite('FilterManager Tests', () => {
 		});
 
 		// Should emit event for first add
-		filterManager.addAttribute('Required');
+		filterManager.addAttributeToFilter('Required');
 		assert.strictEqual(changeCount, 1);
 
 		// Should emit event for subsequent adds
-		filterManager.addAttribute('Serializable');
+		filterManager.addAttributeToFilter('Serializable');
 		assert.strictEqual(changeCount, 2);
 
 		// Should emit event for removal
-		filterManager.removeAttribute('Required');
+		filterManager.removeAttributeFromFilter('Required');
 		assert.strictEqual(changeCount, 3);
 
 		// Should emit event for setSelectedAttributes
@@ -100,7 +96,7 @@ suite('FilterManager Tests', () => {
 		assert.strictEqual(changeCount, 4);
 
 		// Should emit event for clear
-		filterManager.clearFilters();
+		filterManager.clearAllFilters();
 		assert.strictEqual(changeCount, 5);
 
 		done();
@@ -113,10 +109,10 @@ suite('FilterManager Tests', () => {
 			lastEmittedState = state;
 		});
 
-		filterManager.addAttribute('Required');
+		filterManager.addAttributeToFilter('Required');
 		assert.strictEqual(lastEmittedState.has('Required'), true);
 
-		filterManager.addAttribute('Serializable');
+		filterManager.addAttributeToFilter('Serializable');
 		assert.strictEqual(lastEmittedState.has('Serializable'), true);
 		assert.strictEqual(lastEmittedState.size, 2);
 
@@ -129,11 +125,11 @@ suite('FilterManager Tests', () => {
 			changeCount++;
 		});
 
-		filterManager.addAttribute('Required');
+		filterManager.addAttributeToFilter('Required');
 		const firstCount = changeCount;
 
 		// Try adding the same attribute again - should still emit event
-		filterManager.addAttribute('Required');
+		filterManager.addAttributeToFilter('Required');
 		assert.strictEqual(changeCount, firstCount + 1);
 
 		done();
@@ -156,7 +152,6 @@ suite('FilterManager Tests', () => {
 suite('AttributeProvider File Change Tests', () => {
 	test('parseFile should clear old entries when file is updated with fewer attributes', () => {
 		// This test verifies that when a file with 3 attributes is updated
-		// to have only 1 attribute, the count is correct (not 4)
 		const { CSharpParser } = require('../csharpParser');
 		
 		const code1 = `
@@ -174,7 +169,6 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		// Verify test data is correct
 		assert.strictEqual(attrs1.length, 3, 'First code should have 3 attributes');
 		assert.strictEqual(attrs2.length, 1, 'Second code should have 1 attribute');
 	});
@@ -197,7 +191,6 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		// Verify test data is correct
 		assert.strictEqual(attrs1.length, 1, 'First code should have 1 attribute');
 		assert.strictEqual(attrs2.length, 3, 'Second code should have 3 attributes');
 	});
@@ -221,14 +214,9 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		// If parseFile doesn't clear old entries, attributes would accumulate
-		// OLD BEHAVIOR: Map would have [Serializable: 2 occurrences] (one from each parse)
-		// CORRECT BEHAVIOR: Map should have [Serializable: 1 occurrence]
 		
 		assert.strictEqual(attrs1.length, 3);
 		assert.strictEqual(attrs2.length, 1);
-		// The issue is in parseFile - it should clear old entries for the file
-		// before adding new ones
 	});
 
 	test('when attributes are added to file, count should increase correctly', () => {
@@ -253,7 +241,6 @@ public class MyClass { }
 		assert.strictEqual(attrs1.length, 1);
 		assert.strictEqual(attrs2.length, 3);
 		
-		// New attributes should be: Required, Obsolete
 		const names2 = attrs2.map((a: any) => a.name);
 		assert.deepStrictEqual(names2.sort(), ['Obsolete', 'Required', 'Serializable'].sort());
 	});
@@ -295,10 +282,6 @@ public class MyClass { }
 	});
 
 	test('when attributes are removed and file is saved, occurrence count should decrease', () => {
-		// This test verifies the actual bug fix:
-		// If a file initially has 3 attributes and you remove 2 of them,
-		// the occurrence count should be 1, not 4 (1 + 3 old)
-		
 		const { CSharpParser } = require('../csharpParser');
 		const fs = require('fs');
 		const path = require('path');
@@ -312,7 +295,6 @@ public class MyClass { }
 		]);
 		
 		// File 1 is updated: OLD had [Serializable, Required], NEW has just [Required]
-		// So we need to remove the Serializable entry for file1
 		const filePath = '/test/file1.cs';
 		
 		// Simulate parseFile logic
@@ -330,7 +312,6 @@ public class MyClass { }
 			attributeMap.delete(key);
 		}
 		
-		// Now add Required for file1
 		if (!attributeMap.has('Required')) {
 			attributeMap.set('Required', []);
 		}
@@ -340,20 +321,14 @@ public class MyClass { }
 			namespace: 'Test'
 		});
 		
-		// Check results
 		const serializableCount = attributeMap.get('Serializable')?.length || 0;
 		const requiredCount = attributeMap.get('Required')?.length || 0;
 		
-		// Serializable should now only have 1 occurrence (from file2)
 		assert.strictEqual(serializableCount, 1, 'Serializable should have 1 occurrence after removing from file1');
-		// Required should have 1 occurrence (from file1)
 		assert.strictEqual(requiredCount, 1, 'Required should have 1 occurrence in file1');
 	});
 
 	test('when attributes are added and file is saved, occurrence count should increase correctly', () => {
-		// This test verifies that adding attributes works correctly
-		// Start with file having [Serializable], then update to [Serializable, Required, Obsolete]
-		
 		const attributeMap = new Map();
 		attributeMap.set('Serializable', [
 			{ file: '/test/file1.cs', attribute: { name: 'Serializable' }, namespace: 'Test' }
@@ -389,7 +364,6 @@ public class MyClass { }
 			});
 		}
 		
-		// All three attributes should have exactly 1 occurrence
 		assert.strictEqual(attributeMap.get('Serializable')?.length || 0, 1);
 		assert.strictEqual(attributeMap.get('Required')?.length || 0, 1);
 		assert.strictEqual(attributeMap.get('Obsolete')?.length || 0, 1);
@@ -424,9 +398,7 @@ public class MyClass { }
 			attributeMap.delete(key);
 		}
 		
-		// Required should be completely removed (no other file has it)
 		assert.strictEqual(attributeMap.has('Required'), false);
-		// Serializable should still exist (file2 has it)
 		assert.strictEqual(attributeMap.get('Serializable')?.length || 0, 1);
 		assert.strictEqual(attributeMap.get('Serializable')?.[0].file, '/test/file2.cs');
 	});
@@ -468,7 +440,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
 
-		// Access expansion manager to check expanded nodes
 		const expansionMgr = provider.getExpansionManager();
 		const expandedNodeIds = expansionMgr.getExpandedNodeIds();
 		assert.strictEqual(expandedNodeIds instanceof Set, true);
@@ -479,13 +450,11 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
 
-		// Create a mock TreeView
 		const mockTreeView = {
 			onDidExpandElement: () => ({ dispose: () => {} }),
 			onDidCollapseElement: () => ({ dispose: () => {} })
 		};
 
-		// Should not throw
 		assert.doesNotThrow(() => {
 			provider.setTreeView(mockTreeView as any);
 		});
@@ -496,10 +465,8 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const provider = new AttributeProvider(filterManager);
 		const { AttributeItem } = require('../attributeProvider');
 
-		// Get initial children (root level)
 		const rootChildren = provider.getChildren();
 		
-		// Should not crash even if tree is empty or modified
 		assert.strictEqual(Array.isArray(rootChildren), true);
 	});
 
@@ -511,7 +478,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const repo = provider.getRepository();
 		repo.clear();
 
-		// Get children should return empty array, not crash
 		const children = provider.getChildren();
 		assert.strictEqual(Array.isArray(children), true);
 		assert.strictEqual(children.length, 0);
@@ -533,14 +499,11 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const repo = provider.getRepository();
 		repo.setAttributeLocations('Obsolete', attributes);
 
-		// Get children - should work
 		const children = provider.getChildren();
 		assert.strictEqual(children.length > 0, true);
 
-		// Now clear the repository (simulating node removal)
 		repo.clear();
 
-		// Get children - should still work without crashing
 		const emptyChildren = provider.getChildren();
 		assert.strictEqual(Array.isArray(emptyChildren), true);
 		assert.strictEqual(emptyChildren.length, 0);
@@ -559,7 +522,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 			'attribute|Serializable|Test'
 		);
 
-		// Generate ID multiple times - should be identical
 		const expansionMgr = provider.getExpansionManager();
 		const id1 = expansionMgr.getNodeId(node);
 		const id2 = expansionMgr.getNodeId(node);
@@ -621,7 +583,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 expansionMgr.markExpanded(keyNodeId);
                 assert.strictEqual(expansionMgr.isExpanded(keyNodeId), true, 'Key should be in expanded state');
                 
-                // Now simulate file save that removes the Required attribute
                 repo.removeLocationsFromFile('Required', '/test/Users.cs');
                 
                 // Get children after attribute removal
@@ -631,14 +592,11 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
                 assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist after attribute removal');
                 
-                // The node ID should be the same because context is the same
                 const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode);
                 assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable (both should be "Key")');
                 
-                // The expanded set should still have it
                 assert.strictEqual(expansionMgr.isExpanded(updatedKeyNodeId), true, 'Expanded state should be preserved');
                 
-                // The node should be returned with Expanded state
                 assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node should be marked as Expanded');
         });
 
@@ -877,9 +835,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 // Users.cs should not be in the list
                 const usersStillThere = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 assert.strictEqual(usersStillThere, undefined, 'Users.cs should be removed when it has no occurrences');
-                
-                // The expanded set might still have the old ID, but it's not an issue since the node doesn't exist
-                // (In real usage, the tree would simply not show it)
         });
 
         test('should expand file node and show child occurrences', () => {
@@ -966,7 +921,6 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 const repo = provider.getRepository();
                 
-                // Setup
                 repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
@@ -1194,12 +1148,10 @@ public interface IArticleService
 		const interfaceObsoleteAttrs = attrs.filter((a: any) => a.name === 'Obsolete');
 		assert.strictEqual(interfaceObsoleteAttrs.length >= 2, true, 'Should find at least 2 Obsolete attributes');
 		
-		// First Obsolete should target the interface itself
 		const interfaceObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'interface');
 		assert.strictEqual(interfaceObsolete !== undefined, true, 'Should find Obsolete on interface');
 		assert.strictEqual(interfaceObsolete.targetName, 'IArticleService', 'Should identify IArticleService as target');
 		
-		// Second Obsolete should target the SearchArticles method
 		const methodObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'method');
 		assert.strictEqual(methodObsolete !== undefined, true, 'Should find Obsolete on method');
 		assert.strictEqual(methodObsolete.targetName, 'SearchArticles', 'Should identify SearchArticles as target');

@@ -17,10 +17,7 @@ export class FilterManager {
     this._onFilterChanged.fire(new Set(this.selectedAttributes));
   }
 
-  /**
-   * Toggle an attribute in the filter
-   */
-  toggleAttribute(attribute: string): void {
+  toggleAttributeInFilter(attribute: string): void {
     if (this.selectedAttributes.has(attribute)) {
       this.selectedAttributes.delete(attribute);
     } else {
@@ -29,47 +26,29 @@ export class FilterManager {
     this._onFilterChanged.fire(new Set(this.selectedAttributes));
   }
 
-  /**
-   * Add an attribute to the filter
-   */
-  addAttribute(attribute: string): void {
+  addAttributeToFilter(attribute: string): void {
     this.selectedAttributes.add(attribute);
     this._onFilterChanged.fire(new Set(this.selectedAttributes));
   }
 
-  /**
-   * Remove an attribute from the filter
-   */
-  removeAttribute(attribute: string): void {
+  removeAttributeFromFilter(attribute: string): void {
     this.selectedAttributes.delete(attribute);
     this._onFilterChanged.fire(new Set(this.selectedAttributes));
   }
 
-  /**
-   * Clear all filters
-   */
-  clearFilters(): void {
+  clearAllFilters(): void {
     this.selectedAttributes.clear();
     this._onFilterChanged.fire(new Set(this.selectedAttributes));
   }
 
-  /**
-   * Get currently selected attributes
-   */
   getSelectedAttributes(): Set<string> {
     return new Set(this.selectedAttributes);
   }
 
-  /**
-   * Check if any filters are active
-   */
-  hasFilters(): boolean {
+  hasActiveFilters(): boolean {
     return this.selectedAttributes.size > 0;
   }
 
-  /**
-   * Check if a specific attribute is selected
-   */
   isAttributeSelected(attribute: string): boolean {
     return this.selectedAttributes.has(attribute);
   }
