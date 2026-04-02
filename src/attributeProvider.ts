@@ -3,7 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CSharpParser, AttributeInfo, InterfaceMethodSignature } from './csharpParser';
 import { FilterManager } from './filterManager';
+import { ExpansionManager } from './expansionManager';
+import { AttributeRepository, AttributeLocation } from './attributeRepository';
+import { SettingsManager } from './settingsManager';
+import { TreeItemBuilder } from './treeItemBuilder';
 
+/**
+ * Represents a node in the attribute tree view
+ */
 export class AttributeItem extends vscode.TreeItem {
   constructor(
     public label: string,
@@ -26,124 +33,168 @@ export class AttributeItem extends vscode.TreeItem {
   }
 }
 
-interface AttributeLocation {
-  file: string;
-  attribute: AttributeInfo;
-  namespace: string | null;
-}
-
+/**
+ * Delegates specific functionality to focused manager classes
+ */
 export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<AttributeItem | undefined>();
   onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private attributeMap: Map<string, AttributeLocation[]> = new Map();
-  private showNamespaceHierarchy: boolean = true;
+  // Composed managers
+  private repository: AttributeRepository;
+  private expansionManager: ExpansionManager;
+  private settingsManager: SettingsManager;
+  private treeItemBuilder: TreeItemBuilder;
   private filterManager: FilterManager;
   private treeView: vscode.TreeView<AttributeItem> | undefined;
-  private expandedNodeIds: Set<string> = new Set();
 
   constructor(filterManager?: FilterManager) {
     this.filterManager = filterManager || new FilterManager();
-    this.loadSettings();
+    this.repository = new AttributeRepository();
+    this.expansionManager = new ExpansionManager();
+    this.settingsManager = new SettingsManager();
+    this.treeItemBuilder = new TreeItemBuilder(this.expansionManager);
+
     this.refresh();
-    this.setupWatchers();
-    this.setupConfigListener();
+    this.setupFileWatchers();
+    this.setupSettingsListener();
   }
 
   /**
-   * Sets the TreeView reference and hooks up expand/collapse listeners
+   * Sets the TreeView reference and hooks up expand/collapse event listeners
    */
   setTreeView(treeView: vscode.TreeView<AttributeItem>): void {
     this.treeView = treeView;
-    
-    // Track when user expands nodes
-    treeView.onDidExpandElement((event) => {
-      const nodeId = this.getNodeId(event.element);
-      this.expandedNodeIds.add(nodeId);
-    });
-
-    // Track when user collapses nodes
-    treeView.onDidCollapseElement((event) => {
-      const nodeId = this.getNodeId(event.element);
-      this.expandedNodeIds.delete(nodeId);
-    });
+    this.expansionManager.setupTreeViewListeners(treeView);
   }
 
   /**
-   * Generates a unique ID for a tree node
-   * Uses context (stable identifier) rather than label (which includes count that changes)
+   * Required by TreeDataProvider interface
    */
-  private getNodeId(element: AttributeItem): string {
-    // For file nodes, create a unique ID combining attribute and file
-    // File nodes have element.file AND context without '|'
+  getTreeItem(element: AttributeItem): vscode.TreeItem {
+    return element;
+  }
+
+  /**
+   * Required by TreeDataProvider interface - returns children of a node
+   */
+  getChildren(element?: AttributeItem): AttributeItem[] {
+    if (!element) {
+      // Root level - choose hierarchy based on settings
+      return this.settingsManager.isNamespaceHierarchyEnabled()
+        ? this.getRootNamespaceChildren()
+        : this.getRootFlatChildren();
+    }
+
+    // Delegate to appropriate children getter based on node type
+    if (element.file && element.label?.includes("interface '")) {
+      return this.getInterfaceMethodChildren(element);
+    }
+
+    if (element.context?.startsWith('namespace|') && !element.file) {
+      return this.getNamespaceAttributeChildren(element);
+    }
+
+    if (element.label?.startsWith('[') && !element.file && element.context && !element.context.includes('|')) {
+      return this.getFlatModeFileChildren(element);
+    }
+
+    if (element.context?.startsWith('attribute|')) {
+      return this.getHierarchyModeFileChildren(element);
+    }
+
     if (element.file && element.context && !element.context.includes('|')) {
-      return `file:${element.file}:attr:${element.context}`;
+      return this.getAttributeOccurrenceChildren(element);
     }
-    
-    // Use context as the primary stable identifier
-    if (element.context) {
-      return element.context;
-    }
-    
-    // Fallback to label+file if no context
-    const parts = [element.label, element.file || ''];
-    return parts.join('::');
+
+    return [];
   }
 
   /**
-   * Restores expansion state immediately without waiting
-   * Called in parallel with tree rebuild to prevent visible collapse
+   * Get all attribute names in the workspace
    */
-  private loadSettings() {
-    const config = vscode.workspace.getConfiguration('MetaLens');
-    this.showNamespaceHierarchy = config.get('showNamespaceHierarchy', true);
+  getAllAttributeNames(): Set<string> {
+    return this.repository.getAllAttributeNames();
   }
 
-  private setupConfigListener() {
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('MetaLens.showNamespaceHierarchy')) {
-        this.loadSettings();
-        // Clear expanded state since tree structure is changing
-        this.expandedNodeIds.clear();
-        this._onDidChangeTreeData.fire(undefined);
-      }
-    });
+  // ========================
+  // Testing/Debugging Accessors
+  // ========================
+
+  /**
+   * Get the expansion manager (for testing)
+   */
+  getExpansionManager(): ExpansionManager {
+    return this.expansionManager;
   }
 
-  private setupWatchers() {
-    // Watch for C# file changes
-    const watcher = vscode.workspace.createFileSystemWatcher('**/*.cs');
-    watcher.onDidCreate(() => this.refresh());
-    watcher.onDidDelete(() => this.refresh());
-    watcher.onDidChange((uri) => {
-      // Parse file and preserve expanded state
-      this.parseFilePreservingExpansion(uri);
-    });
+  /**
+   * Get the attribute repository (for testing)
+   */
+  getRepository(): AttributeRepository {
+    return this.repository;
   }
 
-  async refresh() {
+  /**
+   * Get the settings manager (for testing)
+   */
+  getSettingsManager(): SettingsManager {
+    return this.settingsManager;
+  }
+
+  // ========================
+  // Private Methods
+  // ========================
+
+  /**
+   * Refresh all attributes in the workspace
+   */
+  async refresh(): Promise<void> {
     console.log('Refreshing C# attributes...');
-    this.attributeMap.clear();
+    this.repository.clear();
     await this.findAttributesInWorkspace();
-    
-    // Fire full tree update (refresh is an explicit user action, so collapse is acceptable)
     this._onDidChangeTreeData.fire(undefined);
   }
 
   /**
-   * Parses a file and updates the tree while preserving expansion state
+   * Setup file system watchers for C# files
    */
-  private async parseFilePreservingExpansion(uri: vscode.Uri): Promise<void> {
-    // Parse the file (updates attributeMap)
-    this.parseFile(uri);
+  private setupFileWatchers(): void {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.cs');
     
-    // Fire undefined to rebuild tree
-    // Expansion will be preserved automatically because getChildren()
-    // creates items with the correct collapsibleState based on expandedNodeIds
+    // Full refresh on new files
+    watcher.onDidCreate(() => this.refresh());
+    
+    // Full refresh on deleted files
+    watcher.onDidDelete(() => this.refresh());
+    
+    // Incremental update on changes (preserves expansion)
+    watcher.onDidChange((uri) => {
+      this.parseFileAndUpdateTree(uri);
+    });
+  }
+
+  /**
+   * Setup listener for settings changes
+   */
+  private setupSettingsListener(): void {
+    this.settingsManager.onSettingsChangedEvent(() => {
+      this._onDidChangeTreeData.fire(undefined);
+    });
+  }
+
+  /**
+   * Parse a single file and update the tree view
+   */
+  private parseFileAndUpdateTree(uri: vscode.Uri): void {
+    this.parseFile(uri);
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  private async findAttributesInWorkspace() {
+  /**
+   * Find and parse attributes in all workspace files
+   */
+  private async findAttributesInWorkspace(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
       console.log('No workspace folders found');
@@ -168,141 +219,72 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     }
   }
 
-  private parseFile(uri: vscode.Uri) {
+  /**
+   * Parse a C# file and extract attributes
+   */
+  private parseFile(uri: vscode.Uri): void {
     try {
       const filePath = uri.fsPath;
       
-      // Clean up empty attribute entries and remove from map
-      const keysToRemove: string[] = [];
-      for (const [key, locations] of this.attributeMap.entries()) {
-        const filtered = locations.filter(loc => loc.file !== filePath);
-        if (filtered.length === 0) {
-          keysToRemove.push(key);
-        } else {
-          // Update with filtered array (without the current file)
-          this.attributeMap.set(key, filtered);
-        }
-      }
+      // Remove old entries for this file
+      this.repository.removeLocationsFromFile(filePath);
       
-      // Remove empty attribute entries
-      for (const key of keysToRemove) {
-        this.attributeMap.delete(key);
-      }
-      
-      // Now parse and add the new content
+      // Parse the file
       const content = fs.readFileSync(filePath, 'utf-8');
       const attributes = CSharpParser.parseAttributes(content);
       const namespace = CSharpParser.extractNamespace(content);
 
-      if (attributes.length > 0) {
-        // Add each attribute to the map
-        for (const attr of attributes) {
-          const key = attr.fullName;
-          if (!this.attributeMap.has(key)) {
-            this.attributeMap.set(key, []);
-          }
-          this.attributeMap.get(key)!.push({
-            file: filePath,
-            attribute: attr,
-            namespace: namespace
-          });
-        }
-
-        console.log(`Found ${attributes.length} attributes in ${path.basename(filePath)}`);
-      } else {
-        console.log(`No attributes found in ${path.basename(filePath)}`);
+      // Add new entries to repository
+      for (const attr of attributes) {
+        const locations = this.repository.getAttributeLocations(attr.fullName);
+        locations.push({
+          file: filePath,
+          attribute: attr,
+          namespace: namespace
+        });
+        this.repository.setAttributeLocations(attr.fullName, locations);
       }
+
+      const fileCount = attributes.length;
+      console.log(`${fileCount > 0 ? 'Found' : 'No'} ${fileCount} attribute${fileCount !== 1 ? 's' : ''} in ${path.basename(filePath)}`);
     } catch (error) {
       console.error(`Error parsing ${uri.fsPath}:`, error);
     }
   }
 
+  /**
+   * Extract simplified namespace name from full namespace path
+   */
   private extractNamespacePart(fullNamespace: string | null): string {
-    if (!fullNamespace) {return 'No Namespace';}
-    // Extract the second part of the namespace (e.g., "Models" from "CsAttributeExampleProject.Models")
+    if (!fullNamespace) {
+      return 'No Namespace';
+    }
     const parts = fullNamespace.split('.');
     return parts[0];
   }
 
   /**
-   * Get all attribute names in the workspace
-   */
-  getAllAttributeNames(): Set<string> {
-    return new Set(this.attributeMap.keys());
-  }
-
-  /**
-   * Get the total count of attributes across all files
-   * @returns Total number of attribute occurrences
-   */
-  getTotalAttributeCount(): number {
-    let count = 0;
-    for (const locations of this.attributeMap.values()) {
-      count += locations.length;
-    }
-    return count;
-  }
-
-  /**
-   * Check if an attribute should be shown based on current filters
+   * Check if an attribute should be displayed based on current filters
    */
   private shouldShowAttribute(attributeName: string): boolean {
-    // If no filters selected, show all
     if (!this.filterManager.hasFilters()) {
       return true;
     }
-    // If filters are active, only show selected attributes
     return this.filterManager.isAttributeSelected(attributeName);
   }
 
-  getTreeItem(element: AttributeItem): vscode.TreeItem {
-    return element;
-  }
-
-  getChildren(element?: AttributeItem): AttributeItem[] {
-    if (!element) {
-      // Root level
-      return this.showNamespaceHierarchy
-        ? this.getRootNamespaceChildren()
-        : this.getRootFlatChildren();
-    }
-
-    // Handle interface method signatures
-    if (element.file && element.label?.includes("interface '")) {
-      return this.getInterfaceMethodChildren(element);
-    }
-
-    // Handle namespace level (hierarchy mode)
-    if (element.context?.startsWith('namespace|') && !element.file) {
-      return this.getNamespaceAttributeChildren(element);
-    }
-
-    // Handle attribute in flat mode (root level)
-    if (element.label?.startsWith('[') && !element.file && element.context && !element.context.includes('|')) {
-      return this.getFlatModeFileChildren(element);
-    }
-
-    // Handle attribute in hierarchy mode (under namespace)
-    if (element.context?.startsWith('attribute|')) {
-      return this.getHierarchyModeFileChildren(element);
-    }
-
-    // Handle attribute occurrences in a file
-    if (element.file && element.context && !element.context.includes('|')) {
-      return this.getAttributeOccurrenceChildren(element);
-    }
-
-    return [];
-  }
+  // ========================
+  // Tree Building Methods
+  // ========================
 
   /**
-   * Gets root-level namespace nodes (hierarchy mode)
+   * Build root-level namespace nodes (hierarchy mode)
    */
   private getRootNamespaceChildren(): AttributeItem[] {
     const namespaceMap = new Map<string, AttributeLocation[]>();
 
-    // Collect all locations by namespace, respecting filters
-    for (const [attrName, locations] of this.attributeMap.entries()) {
+    // Group all locations by namespace
+    for (const [attrName, locations] of this.repository.getAllLocations()) {
       if (!this.shouldShowAttribute(attrName)) {
         continue;
       }
@@ -316,61 +298,37 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       }
     }
 
-    // Return namespaces as root
+    // Return namespace nodes
     return Array.from(namespaceMap.keys())
       .sort()
-      .map(
-        (ns) => {
-          const nsLocations = namespaceMap.get(ns) || [];
-          const nodeId = `namespace|${ns}`;
-          const wasExpanded = this.expandedNodeIds.has(nodeId);
-          
-          return new AttributeItem(
-            `${ns} (${nsLocations.length})`,
-            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            undefined,
-            undefined,
-            nodeId
-          );
-        }
-      );
+      .map((ns) => {
+        const nsLocations = namespaceMap.get(ns) || [];
+        return this.treeItemBuilder.buildNamespaceItem(ns, nsLocations.length);
+      });
   }
 
   /**
-   * Gets root-level attribute nodes (flat mode)
+   * Build root-level attribute nodes (flat mode)
    */
   private getRootFlatChildren(): AttributeItem[] {
-    return Array.from(this.attributeMap.keys())
-      .filter(attributeName => this.shouldShowAttribute(attributeName))
+    return Array.from(this.repository.getAllAttributeNames())
+      .filter(attr => this.shouldShowAttribute(attr))
       .sort()
-      .map(
-        (attributeName) => {
-          const locations = this.attributeMap.get(attributeName) || [];
-          const label = `[${attributeName}] (${locations.length})`;
-          
-          // Check if this node was previously expanded
-          const wasExpanded = this.expandedNodeIds.has(attributeName);
-          
-          return new AttributeItem(
-            label,
-            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            undefined,
-            undefined,
-            attributeName
-          );
-        }
-      );
+      .map((attributeName) => {
+        const count = this.repository.getAttributeOccurrenceCount(attributeName);
+        return this.treeItemBuilder.buildAttributeItem(attributeName, count);
+      });
   }
 
   /**
-   * Gets attributes within a specific namespace (hierarchy mode, level 2)
+   * Build attribute nodes within a namespace (hierarchy mode, level 2)
    */
   private getNamespaceAttributeChildren(element: AttributeItem): AttributeItem[] {
     const ns = element.context!.replace('namespace|', '');
     const attributeMap = new Map<string, AttributeLocation[]>();
 
-    // Collect attributes for this namespace, respecting filters
-    for (const [attrName, locations] of this.attributeMap.entries()) {
+    // Collect attributes in this namespace
+    for (const [attrName, locations] of this.repository.getAllLocations()) {
       if (!this.shouldShowAttribute(attrName)) {
         continue;
       }
@@ -384,69 +342,43 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
     // Return attributes in this namespace
     return Array.from(attributeMap.keys())
       .sort()
-      .map(
-        (attributeName) => {
-          const locations = attributeMap.get(attributeName) || [];
-          const label = `[${attributeName}] (${locations.length})`;
-          
-          // Check if this node was previously expanded
-          const nodeId = this.getNodeId(new AttributeItem(label, vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, `attribute|${attributeName}|${ns}`));
-          const wasExpanded = this.expandedNodeIds.has(nodeId);
-          
-          return new AttributeItem(
-            label,
-            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            undefined,
-            undefined,
-            `attribute|${attributeName}|${ns}`
-          );
-        }
-      );
+      .map((attributeName) => {
+        const count = attributeMap.get(attributeName)?.length || 0;
+        return this.treeItemBuilder.buildAttributeItem(attributeName, count, ns);
+      });
   }
 
   /**
-   * Gets files for an attribute in flat mode (flat mode, level 2)
+   * Build file nodes for an attribute (flat mode, level 2)
    */
   private getFlatModeFileChildren(element: AttributeItem): AttributeItem[] {
     const attributeName = element.context!;
-    const locations = this.attributeMap.get(attributeName) || [];
-    const uniqueFiles = new Map<string, AttributeLocation[]>();
+    const locations = this.repository.getAttributeLocations(attributeName);
+    const fileMap = new Map<string, AttributeLocation[]>();
 
+    // Group by file
     for (const location of locations) {
-      if (!uniqueFiles.has(location.file)) {
-        uniqueFiles.set(location.file, []);
+      if (!fileMap.has(location.file)) {
+        fileMap.set(location.file, []);
       }
-      uniqueFiles.get(location.file)!.push(location);
+      fileMap.get(location.file)!.push(location);
     }
 
-    return Array.from(uniqueFiles.keys())
+    // Return file nodes
+    return Array.from(fileMap.keys())
       .sort()
-      .map(
-        (file) => {
-          const fileName = path.basename(file);
-          const fileNodeId = `file:${file}:attr:${attributeName}`;
-          const wasExpanded = this.expandedNodeIds.has(fileNodeId);
-          
-          return new AttributeItem(
-            fileName,
-            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            file,
-            undefined,
-            attributeName
-          );
-        }
-      );
+      .map((file) => this.treeItemBuilder.buildFileItem(file, attributeName));
   }
 
   /**
-   * Gets files for an attribute within a namespace (hierarchy mode, level 3)
+   * Build file nodes for an attribute within a namespace (hierarchy mode, level 3)
    */
   private getHierarchyModeFileChildren(element: AttributeItem): AttributeItem[] {
     const parts = element.context!.replace('attribute|', '').split('|');
     const attributeName = parts[0];
     const ns = parts[1];
 
-    const locations = this.attributeMap.get(attributeName) || [];
+    const locations = this.repository.getAttributeLocations(attributeName);
     const fileMap = new Map<string, AttributeLocation[]>();
 
     // Filter by namespace and group by file
@@ -459,27 +391,14 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       }
     }
 
+    // Return file nodes
     return Array.from(fileMap.keys())
       .sort()
-      .map(
-        (file) => {
-          const fileName = path.basename(file);
-          const fileNodeId = `file:${file}:attr:${attributeName}`;
-          const wasExpanded = this.expandedNodeIds.has(fileNodeId);
-          
-          return new AttributeItem(
-            fileName,
-            wasExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
-            file,
-            undefined,
-            attributeName
-          );
-        }
-      );
+      .map((file) => this.treeItemBuilder.buildFileItem(file, attributeName));
   }
 
   /**
-   * Gets method signatures for an interface attribute
+   * Build method signature nodes for an interface attribute
    */
   private getInterfaceMethodChildren(element: AttributeItem): AttributeItem[] {
     const interfaceMatch = element.label!.match(/interface\s+'([^']+)'/);
@@ -497,13 +416,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       );
 
       return methodSignatures.map((sig: InterfaceMethodSignature) => {
-        return new AttributeItem(
-          sig.signature,
-          vscode.TreeItemCollapsibleState.None,
-          element.file,
-          sig.line,
-          `Interface member: ${sig.signature}`
-        );
+        return this.treeItemBuilder.buildInterfaceMethodItem(element.file!, sig);
       });
     } catch (error) {
       console.error(`Error extracting interface methods from ${element.file}:`, error);
@@ -512,122 +425,20 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   /**
-   * Gets attribute occurrences in a file (leaf level)
+   * Build occurrence nodes (attribute instances) within a file
    */
   private getAttributeOccurrenceChildren(element: AttributeItem): AttributeItem[] {
     const attributeName = element.context!;
-    const locations = this.attributeMap.get(attributeName) || [];
+    const locations = this.repository.getAttributeLocations(attributeName);
 
-    // Filter locations to this file and sort by line number
+    // Filter to this file and sort by line
     const fileLocations = locations
       .filter(loc => loc.file === element.file)
       .sort((a, b) => a.attribute.line - b.attribute.line);
 
     return fileLocations.map((location) => {
-      const attr = location.attribute;
-
-      // Build descriptive label
-      const label = this.buildAttributeOccurrenceLabel(attr);
-
-      // Build comprehensive tooltip
-      const tooltipText = this.buildAttributeTooltip(attr);
-
-      // Interface attributes are collapsible
-      const isCollapsible =
-        attr.targetElement === 'interface' && attr.targetName;
-
-      return new AttributeItem(
-        label,
-        isCollapsible
-          ? vscode.TreeItemCollapsibleState.Collapsed
-          : vscode.TreeItemCollapsibleState.None,
-        element.file,
-        attr.line,
-        tooltipText
-      );
+      const tooltip = this.treeItemBuilder.buildAttributeTooltip(location.attribute);
+      return this.treeItemBuilder.buildAttributeOccurrenceItem(element.file!, location.attribute, tooltip);
     });
-  }
-
-  /**
-   * Builds the display label for an attribute occurrence
-   */
-  private buildAttributeOccurrenceLabel(attr: AttributeInfo): string {
-    if (attr.targetElement === 'parameter' && attr.parameterName) {
-      return `parameter '${attr.parameterName}'`;
-    }
-
-    if (attr.targetElement === 'return') {
-      return `return value`;
-    }
-
-    if (attr.targetName && attr.targetElement && attr.targetElement !== 'unknown') {
-      return `${attr.targetElement} '${attr.targetName}'`;
-    }
-
-    if (attr.targetElement && attr.targetElement !== 'unknown') {
-      return attr.targetElement;
-    }
-
-    return attr.arguments ? `${attr.name}(${attr.arguments})` : attr.name;
-  }
-
-  /**
-   * Builds the tooltip text for an attribute occurrence
-   */
-  private buildAttributeTooltip(attr: AttributeInfo): string {
-    let tooltipText = `Attribute: ${attr.fullName}`;
-
-    if (attr.arguments) {
-      tooltipText += `\nArguments: ${attr.arguments}`;
-    }
-
-    tooltipText += `\nTarget: ${this.getTargetDescription(attr)}`;
-
-    if (attr.targetName) {
-      tooltipText += `\nName: ${attr.targetName}`;
-    }
-
-    if (attr.targetElement === 'parameter') {
-      tooltipText += `\nParameter: ${attr.parameterType} ${attr.parameterName}`;
-    }
-
-    tooltipText += `\nLine: ${attr.line}`;
-
-    return tooltipText;
-  }
-
-  private getTargetDescription(attr: AttributeInfo): string {
-    switch (attr.targetElement) {
-      case 'class':
-        return 'class';
-      case 'interface':
-        return 'interface';
-      case 'struct':
-        return 'struct';
-      case 'enum':
-        return 'enum';
-      case 'property':
-        return 'property';
-      case 'field':
-        return 'field';
-      case 'method':
-        return 'method';
-      case 'parameter':
-        return attr.parameterName ? `parameter "${attr.parameterName}"` : 'parameter';
-      case 'event':
-        return 'event';
-      case 'return':
-        return 'return value';
-      case 'delegate':
-        return 'delegate';
-      case 'assembly':
-        return 'assembly';
-      case 'module':
-        return 'module';
-      case 'typevar':
-        return 'type parameter';
-      default:
-        return attr.targetElement || 'unknown';
-    }
   }
 }

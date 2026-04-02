@@ -60,7 +60,7 @@ export class CSharpParser {
       const line = lines[lineIndex];
       
       // Check if line starts with an attribute
-      if (!this.isAttributeStartLine(line)) {
+      if (!this.isAttributeStartLine(line, lineIndex, lines)) {
         continue;
       }
 
@@ -85,18 +85,50 @@ export class CSharpParser {
 
   /**
    * Checks if a line begins with an attribute (after optional whitespace)
+   * Excludes attributes that are part of method parameter lists
    */
-  private static isAttributeStartLine(line: string): boolean {
+  private static isAttributeStartLine(line: string, lineIndex: number, lines: string[]): boolean {
     const lineStartMatch = line.match(/^\s*/);
     if (!lineStartMatch) {
       return false;
     }
     const restOfLine = line.substring(lineStartMatch[0].length);
-    return restOfLine.startsWith('[');
+    
+    if (!restOfLine.startsWith('[')) {
+      return false;
+    }
+
+    // Check if this line is part of a method parameter list
+    // Count opening and closing parens from the current line backwards
+    let openParens = 0;
+    let closeParens = 0;
+    
+    // Count parens on current line up to the attribute
+    for (let i = 0; i < line.indexOf('['); i++) {
+      if (line[i] === '(') {openParens++;}
+      if (line[i] === ')') {closeParens++;}
+    }
+    
+    // Count parens on all previous lines
+    for (let i = lineIndex - 1; i >= 0; i--) {
+      const prevLine = lines[i];
+      for (const char of prevLine) {
+        if (char === '(') {openParens++;}
+        if (char === ')') {closeParens++;}
+      }
+    }
+
+    // If there are more opening parens than closing parens, we're inside a method signature
+    if (openParens > closeParens) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
    * Assembles a complete attribute block, handling multi-line attributes
+   * Continues collecting consecutive attributes even if separated by newlines
    * Returns the full attribute text and the index of the last line used
    */
   private static assembleMultiLineAttribute(
@@ -108,15 +140,47 @@ export class CSharpParser {
     let attributeText = startLine.substring(leadingWhitespace.length);
     let currentLineIdx = startLineIndex;
 
-    // Count brackets to find when attribute block is complete
+    // Count brackets to find when current attribute is complete
     let bracketBalance = this.countBracketBalance(attributeText);
 
-    // If incomplete, append next lines
+    // Continue appending lines while brackets are unbalanced
     while (bracketBalance > 0 && currentLineIdx + 1 < lines.length) {
       currentLineIdx++;
       const nextLine = lines[currentLineIdx];
       attributeText += ' ' + nextLine.trim();
       bracketBalance = this.countBracketBalance(attributeText);
+    }
+
+    // After first attribute is complete, continue looking for stacked attributes on following lines
+    // Skip empty lines and pragmas, and collect consecutive attributes
+    while (currentLineIdx + 1 < lines.length) {
+      const nextLineIdx = currentLineIdx + 1;
+      const nextLine = lines[nextLineIdx];
+      const trimmedNext = nextLine.trim();
+
+      // Skip empty lines and pragma directives
+      if (trimmedNext === '' || trimmedNext.startsWith('#pragma') || trimmedNext.startsWith('#')) {
+        currentLineIdx = nextLineIdx;
+        continue;
+      }
+
+      // If we find another attribute, append it
+      if (trimmedNext.startsWith('[')) {
+        attributeText += ' ' + trimmedNext;
+        currentLineIdx = nextLineIdx;
+        
+        // If this attribute has incomplete brackets, continue assembling
+        bracketBalance = this.countBracketBalance(attributeText);
+        while (bracketBalance > 0 && currentLineIdx + 1 < lines.length) {
+          currentLineIdx++;
+          const continuationLine = lines[currentLineIdx];
+          attributeText += ' ' + continuationLine.trim();
+          bracketBalance = this.countBracketBalance(attributeText);
+        }
+      } else {
+        // Found a non-attribute line, stop collecting
+        break;
+      }
     }
 
     return { attributeText, endLineIndex: currentLineIdx };
@@ -410,17 +474,24 @@ export class CSharpParser {
     startLineIndex: number
   ): AttributeInfo[] {
     const attributes: AttributeInfo[] = [];
+    
+    // Normalize whitespace: replace newlines and multiple spaces with single space
+    const normalizedParamList = paramList.replace(/\s+/g, ' ');
+    
+    // Regex to match: [AttributeName(args)] Type ParamName
+    // Works with normalized (single-space) parameter list
     const regex =
-      /\[\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,=]|$)/g;
+      /\[\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*(?:\(\s*([^)]*)\s*\))?\s*\]\s+([A-Za-z_][A-Za-z0-9_<>?\.]*)\s+([A-Za-z_][A-Za-z0-9_]*?)(?:\s*[,]|$)/g;
 
     let match;
-    while ((match = regex.exec(paramList)) !== null) {
+    while ((match = regex.exec(normalizedParamList)) !== null) {
       const attributeName = match[1];
       const attributeArgs = match[2] || '';
       const paramType = match[3];
       const paramName = match[4];
 
-      const relativePos = fullSignature.indexOf(match[0]);
+      // Find the position in the original paramList for line number calculation
+      const relativePos = paramList.indexOf('[' + attributeName);
       const attrLineIdx = this.calculateAttributeLineIndex(
         lines,
         startLineIndex,
@@ -432,7 +503,7 @@ export class CSharpParser {
         fullName: attributeName,
         arguments: attributeArgs,
         line: attrLineIdx + 1,
-        column: lines[startLineIndex].indexOf('[' + attributeName),
+        column: relativePos >= 0 ? relativePos : 0,
         targetElement: 'parameter',
         targetName: paramName,
         parameterType: paramType,
@@ -530,57 +601,134 @@ export class CSharpParser {
    */
   private static findTargetElement(lines: string[], currentLineIndex: number): string {
     // Look at the next few non-empty lines for the target element
-    for (let i = currentLineIndex + 1; i < Math.min(currentLineIndex + 10, lines.length); i++) {
+    for (let i = currentLineIndex + 1; i < Math.min(currentLineIndex + 15, lines.length); i++) {
       const line = lines[i].trim();
 
-      if (line.startsWith('public class ') || line.startsWith('private class ') || line.startsWith('class ') ||
-          line.startsWith('internal class ') || line.startsWith('protected class ')) {
+      // Skip empty lines and pragmas
+      if (line === '' || line.startsWith('#pragma') || line.startsWith('#')) {
+        continue;
+      }
+
+      // Skip additional attributes
+      if (line.startsWith('[')) {
+        continue;
+      }
+
+      // Class declaration
+      if (line.match(/^(public\s+)?(partial\s+)?(abstract\s+)?(sealed\s+)?class\s+/)) {
         return 'class';
       }
-      if (line.startsWith('public interface ') || line.startsWith('private interface ') || line.startsWith('interface ')) {
+
+      // Interface declaration
+      if (line.match(/^(public\s+)?interface\s+/)) {
         return 'interface';
       }
-      if (line.startsWith('public enum ') || line.startsWith('private enum ') || line.startsWith('enum ')) {
+
+      // Enum declaration
+      if (line.match(/^(public\s+)?(partial\s+)?enum\s+/)) {
         return 'enum';
       }
-      if (line.startsWith('public struct ') || line.startsWith('private struct ') || line.startsWith('struct ')) {
+
+      // Struct declaration
+      if (line.match(/^(public\s+)?(partial\s+)?struct\s+/)) {
         return 'struct';
       }
-      
-      // Event detection: look for 'event' keyword
+
+      // Delegate declaration
+      if (line.match(/^(public\s+)?delegate\s+/)) {
+        return 'delegate';
+      }
+
+      // Event - look for 'event' keyword
       if (line.includes(' event ')) {
         return 'event';
       }
 
-      // Field detection: look for semicolon (;) which indicates a field or property
-      // But not if it has getter/setter which would make it a property
-      if ((line.includes('public ') || line.includes('private ') || line.includes('protected ')) && 
-          line.includes(';') && !line.includes('{')) {
-        return 'field';
-      }
-      
-      // Property detection: look for get/set keywords or braces
-      if ((line.includes('public ') || line.includes('private ') || line.includes('protected ')) && 
-          (line.includes('get;') || line.includes('set;') || line.includes('{ get') || line.includes('{ set') ||
-           (line.includes('{') && (line.includes('get') || line.includes('set'))))) {
-        return 'property';
-      }
-      
-      // Method detection: look for parentheses (method parameters)
-      if ((line.includes('public ') || line.includes('private ') || line.includes('protected ') || 
-           line.includes('internal ')) && 
-          line.includes('(') && !line.includes('class') && !line.includes('interface') && 
-          !line.includes('struct') && !line.includes('delegate')) {
+      // Method - has parentheses for parameters
+      // Pattern: (modifiers) return_type method_name (
+      if (line.match(/^(public|private|protected|internal)\s+/) && 
+          line.includes('(') &&
+          !line.includes('class') && !line.includes('interface') && 
+          !line.includes('struct') && !line.includes('delegate') &&
+          !line.includes('enum')) {
         return 'method';
       }
 
-      // Delegate detection
-      if (line.includes('public delegate ') || line.includes('private delegate ')) {
-        return 'delegate';
+      // Method without visibility modifier (interface methods, or methods without explicit visibility)
+      // Pattern: return_type method_name ( ... )
+      // Match anything that looks like: TypeName MethodName(
+      if (line.match(/^\w+[\w<>?,\[\]?\s]*\s+[A-Za-z_][A-Za-z0-9_]*\s*\(/) &&
+          !line.includes('class') && !line.includes('interface') && 
+          !line.includes('struct') && !line.includes('delegate') &&
+          !line.includes('enum') && !line.includes('get;') && !line.includes('set;')) {
+        return 'method';
       }
 
-      // Stop if we hit another attribute or empty line beyond search range
-      if ((line.startsWith('[') && !line.startsWith('[')) || (line === '' && i > currentLineIndex + 3)) {
+      // Method with return type target [return: ...]
+      // If the line before was [return: ...], this is likely a method
+      if (i > currentLineIndex + 1) {
+        const prevLine = lines[i - 1].trim();
+        if (prevLine.includes('[return:') && line.includes('(')) {
+          return 'method';
+        }
+      }
+
+      // Property - has get/set or opening brace
+      // Pattern: type name { get; set; } or { get; }
+      if (line.match(/^(public|private|protected|internal)\s+/) &&
+          (line.includes(' { ') || line.includes('{') || 
+           line.includes('get;') || line.includes('set;') ||
+           line.includes('get {') || line.includes('set {'))) {
+        return 'property';
+      }
+
+      // Property without visibility modifier (e.g., in interface or auto-property)
+      // Pattern: type name { ... }
+      if (line.match(/^\w+[\w<>\[\],\s]*\s+\w+[\w_]*\s*\{/) && !line.includes('(')) {
+        return 'property';
+      }
+
+      // Field - has semicolon, no getter/setter
+      if (line.match(/^(public|private|protected|internal)\s+/) &&
+          line.includes(';') &&
+          !line.includes('(') &&
+          !line.includes('{')) {
+        return 'field';
+      }
+
+      // Enum member - simple identifier optionally followed by = or ,
+      // No access modifiers, no parentheses or braces
+      if (!line.includes('(') && !line.includes('{') &&
+          (line.match(/^[A-Za-z_][A-Za-z0-9_]*\s*[=,]/) ||
+           line.match(/^[A-Za-z_][A-Za-z0-9_]*\s*$/))) {
+        // Verify we're in an enum context by looking backwards
+        let foundEnumDecl = false;
+        let foundOpenBrace = false;
+        for (let j = i - 1; j >= Math.max(i - 30, 0); j--) {
+          const prevLine = lines[j].trim();
+          // Check for opening brace of enum
+          if (prevLine === '{' || prevLine.endsWith('{')) {
+            foundOpenBrace = true;
+          }
+          // Check for enum declaration
+          if (prevLine.match(/^(public\s+)?(partial\s+)?enum\s+/)) {
+            foundEnumDecl = true;
+            // If we found the enum decl AND saw an opening brace after it, we're good
+            if (foundOpenBrace) {
+              return 'enumMember';
+            }
+            // Or if we just found enum decl by itself (brace might be inline or right after)
+            return 'enumMember';
+          }
+          // Stop if we hit a closing brace or other structure end
+          if (prevLine === '}' || prevLine.match(/^(class|interface|struct)\s+/)) {
+            break;
+          }
+        }
+      }
+
+      // If we hit a declaration line that didn't match, stop
+      if (line.includes('{') || line.includes(';')) {
         break;
       }
     }
@@ -593,15 +741,15 @@ export class CSharpParser {
    */
   private static findTargetName(lines: string[], currentLineIndex: number): string | undefined {
     // Look at the next few non-empty lines for the target element name
-    for (let i = currentLineIndex + 1; i < Math.min(currentLineIndex + 10, lines.length); i++) {
+    for (let i = currentLineIndex + 1; i < Math.min(currentLineIndex + 15, lines.length); i++) {
       const line = lines[i].trim();
 
       if (line === '') {
         continue;
       }
 
-      // Skip attribute lines (they start with '[')
-      if (line.startsWith('[')) {
+      // Skip attribute lines and pragmas (they start with '[' or '#')
+      if (line.startsWith('[') || line.startsWith('#pragma') || line.startsWith('#')) {
         continue;
       }
 
@@ -618,8 +766,7 @@ export class CSharpParser {
         return eventMatch[1];
       }
 
-      // Property/Field - handle various patterns
-      // Matches: access_modifier type name { or ; or = 
+      // Property/Field with explicit access modifier
       // Handles: generic types, nullable, arrays, with/without initialization
       // Pattern: modifier+ (optional static/readonly) type identifier (followed by { ; or =)
       const propMatch = line.match(/(?:public|private|protected|internal)\s+(?:static\s+)?(?:readonly\s+)?[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\{;=]/);
@@ -627,16 +774,71 @@ export class CSharpParser {
         return propMatch[1];
       }
 
-      // Method - extract the method name (look for identifier before opening paren or bracket)
-      // Pattern: access_modifier return_type methodName (or methodName[)
+      // Property/Field without explicit access modifier (e.g., in interface)
+      // Pattern: type name { ... } or type name;
+      const implicitPropMatch = line.match(/^[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\{;=]/);
+      if (implicitPropMatch && !line.includes('(')) {
+        return implicitPropMatch[1];
+      }
+
+      // Enum member - no access modifiers, just: Name or Name = value or Name,
+      // Pattern: identifier followed by = or , or optional whitespace
+      const enumMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:[=,]|$)/);
+      if (enumMatch && !line.includes('(')) {
+        // Verify we're likely in an enum context by looking back
+        let foundEnumDecl = false;
+        let foundOpenBrace = false;
+        for (let j = currentLineIndex; j >= Math.max(currentLineIndex - 30, 0); j--) {
+          const prevLine = lines[j].trim();
+          // Check for opening brace of enum
+          if (prevLine === '{' || prevLine.endsWith('{')) {
+            foundOpenBrace = true;
+          }
+          // Check for enum declaration
+          if (prevLine.match(/^(public\s+)?(partial\s+)?enum\s+/)) {
+            return enumMatch[1];
+          }
+          // Stop if we hit a closing brace or other structure
+          if (prevLine === '}' || prevLine.match(/^(class\s+|interface\s+|struct\s+)/)) {
+            break;
+          }
+        }
+      }
+
+      // Method - extract the method name (look for identifier before opening paren)
+      // Pattern: access_modifier return_type methodName (
       // Handles nullable types (?) and complex return types (arrays, generics)
-      const methodMatch = line.match(/^(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(\[]/);
+      const methodMatch = line.match(/^(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?[\w<>?,\[\]?\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
       if (methodMatch) {
         return methodMatch[1];
       }
 
+      // Method without visibility modifier (interface methods)
+      // Pattern: return_type methodName (
+      const implicitMethodMatch = line.match(/^[\w<>?,\[\]?\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+      if (implicitMethodMatch && !line.includes('class') && !line.includes('interface') && 
+          !line.includes('struct') && !line.includes('delegate') && !line.includes('enum')) {
+        return implicitMethodMatch[1];
+      }
+
+      // Parameter - if we have [Validate(...)] type pattern, extract parameter name
+      // Look for: type paramName or type paramName,
+      const paramMatch = line.match(/^[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[,)]/);
+      if (paramMatch && line.includes(',') && !line.includes('class') && !line.includes('interface')) {
+        return paramMatch[1];
+      }
+
+      // Parameter in method signature (last parameter before closing paren)
+      // Look for: type paramName within parentheses context
+      if (line.includes(')') && !line.includes('{')) {
+        const lastParamMatch = line.match(/^[\w<>?,\[\]?\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\)/);
+        if (lastParamMatch) {
+          return lastParamMatch[1];
+        }
+      }
+
       // If we found a declaration line but couldn't parse the name, stop searching
-      if (line.includes('{') || line.includes('(') || line.includes(';')) {
+      if (line.includes('{') || (line.includes('(') && line.includes(')')) || line.includes(';')) {
         break;
       }
     }

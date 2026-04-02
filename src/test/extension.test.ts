@@ -451,9 +451,10 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const fileNode = new AttributeItem('MyClass.cs', vscode.TreeItemCollapsibleState.Collapsed, '/path/to/MyClass.cs', undefined, 'Serializable');
 
 		// Node IDs should be unique for different nodes
-		const id1 = (provider as any).getNodeId(rootNode);
-		const id2 = (provider as any).getNodeId(attrNode);
-		const id3 = (provider as any).getNodeId(fileNode);
+		const expansionMgr = provider.getExpansionManager();
+		const id1 = expansionMgr.getNodeId(rootNode);
+		const id2 = expansionMgr.getNodeId(attrNode);
+		const id3 = expansionMgr.getNodeId(fileNode);
 
 		assert.strictEqual(typeof id1, 'string');
 		assert.strictEqual(typeof id2, 'string');
@@ -467,8 +468,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
 
-		// Access private field via type assertion
-		const expandedNodeIds = (provider as any).expandedNodeIds;
+		// Access expansion manager to check expanded nodes
+		const expansionMgr = provider.getExpansionManager();
+		const expandedNodeIds = expansionMgr.getExpandedNodeIds();
 		assert.strictEqual(expandedNodeIds instanceof Set, true);
 		assert.strictEqual(expandedNodeIds.size, 0);
 	});
@@ -505,8 +507,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
 		
-		// Mock the internal attributeMap to be empty
-		(provider as any).attributeMap.clear();
+		// Mock the internal repository to be empty
+		const repo = provider.getRepository();
+		repo.clear();
 
 		// Get children should return empty array, not crash
 		const children = provider.getChildren();
@@ -518,7 +521,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
 
-		// Add some attributes to the map
+		// Add some attributes to the repository
 		const attributes = [
 			{
 				file: '/test/test.cs',
@@ -527,14 +530,15 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 			}
 		];
 
-		(provider as any).attributeMap.set('Obsolete', attributes);
+		const repo = provider.getRepository();
+		repo.setAttributeLocations('Obsolete', attributes);
 
 		// Get children - should work
 		const children = provider.getChildren();
 		assert.strictEqual(children.length > 0, true);
 
-		// Now clear the map (simulating node removal)
-		(provider as any).attributeMap.clear();
+		// Now clear the repository (simulating node removal)
+		repo.clear();
 
 		// Get children - should still work without crashing
 		const emptyChildren = provider.getChildren();
@@ -556,9 +560,10 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		);
 
 		// Generate ID multiple times - should be identical
-		const id1 = (provider as any).getNodeId(node);
-		const id2 = (provider as any).getNodeId(node);
-		const id3 = (provider as any).getNodeId(node);
+		const expansionMgr = provider.getExpansionManager();
+		const id1 = expansionMgr.getNodeId(node);
+		const id2 = expansionMgr.getNodeId(node);
+		const id3 = expansionMgr.getNodeId(node);
 
 		assert.strictEqual(id1, id2);
 		assert.strictEqual(id2, id3);
@@ -567,19 +572,20 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 	test('should handle tree structure changes without breaking', () => {
 		const { AttributeProvider } = require('../attributeProvider');
 		const provider = new AttributeProvider(filterManager);
+		const settingsMgr = provider.getSettingsManager();
 
 		// Simulate toggling namespace hierarchy
-		(provider as any).showNamespaceHierarchy = true;
+		settingsMgr.setNamespaceHierarchyEnabled(true);
 		let children = provider.getChildren();
 		assert.strictEqual(Array.isArray(children), true);
 
 		// Toggle to flat mode
-		(provider as any).showNamespaceHierarchy = false;
+		settingsMgr.setNamespaceHierarchyEnabled(false);
 		children = provider.getChildren();
 		assert.strictEqual(Array.isArray(children), true);
 
 		// Toggle back to hierarchy
-		(provider as any).showNamespaceHierarchy = true;
+		settingsMgr.setNamespaceHierarchyEnabled(true);
 		children = provider.getChildren();
 		assert.strictEqual(Array.isArray(children), true);
 	});
@@ -588,14 +594,15 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
                 // Setup initial state with attributes
-                const attributeMap = (provider as any).attributeMap;
-                attributeMap.set('Required', [
+                const repo = provider.getRepository();
+                repo.setAttributeLocations('Required', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
                 ]);
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
                 ]);
                 
@@ -607,14 +614,15 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const keyNode = initialChildren.find((n: any) => n.context === 'Key');
                 assert.strictEqual(keyNode !== undefined, true, 'Key attribute should exist');
                 
-                const keyNodeId = (provider as any).getNodeId(keyNode);
+                const expansionMgr = provider.getExpansionManager();
+                const keyNodeId = expansionMgr.getNodeId(keyNode);
                 
                 // Simulate user expanding the Key attribute
-                (provider as any).expandedNodeIds.add(keyNodeId);
-                assert.strictEqual((provider as any).expandedNodeIds.has(keyNodeId), true, 'Key should be in expandedNodeIds');
+                expansionMgr.markExpanded(keyNodeId);
+                assert.strictEqual(expansionMgr.isExpanded(keyNodeId), true, 'Key should be in expanded state');
                 
                 // Now simulate file save that removes the Required attribute
-                attributeMap.delete('Required');
+                repo.removeLocationsFromFile('Required', '/test/Users.cs');
                 
                 // Get children after attribute removal
                 const updatedChildren = provider.getChildren();
@@ -624,11 +632,11 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist after attribute removal');
                 
                 // The node ID should be the same because context is the same
-                const updatedKeyNodeId = (provider as any).getNodeId(updatedKeyNode);
+                const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode);
                 assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable (both should be "Key")');
                 
                 // The expanded set should still have it
-                assert.strictEqual((provider as any).expandedNodeIds.has(updatedKeyNodeId), true, 'Expanded state should be preserved');
+                assert.strictEqual(expansionMgr.isExpanded(updatedKeyNodeId), true, 'Expanded state should be preserved');
                 
                 // The node should be returned with Expanded state
                 assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node should be marked as Expanded');
@@ -638,11 +646,12 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
                 // Setup initial state with one attribute
-                const attributeMap = (provider as any).attributeMap;
-                attributeMap.set('Key', [
+                const repo = provider.getRepository();
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
                 ]);
                 
@@ -651,12 +660,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const keyNode = initialChildren.find((n: any) => n.context === 'Key');
                 assert.strictEqual(keyNode !== undefined, true, 'Key node should exist initially');
                 
-                const keyNodeId = (provider as any).getNodeId(keyNode);
+                const expansionMgr = provider.getExpansionManager();
+                const keyNodeId = expansionMgr.getNodeId(keyNode);
                 
-                (provider as any).expandedNodeIds.add(keyNodeId);
+                expansionMgr.markExpanded(keyNodeId);
                 
                 // Simulate file save that adds the Required attribute
-                attributeMap.set('Required', [
+                repo.setAttributeLocations('Required', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
                 ]);
                 
@@ -667,9 +677,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
                 assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist');
                 
-                const updatedKeyNodeId = (provider as any).getNodeId(updatedKeyNode);
+                const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode);
                 assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable');
-                assert.strictEqual((provider as any).expandedNodeIds.has(updatedKeyNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(expansionMgr.isExpanded(updatedKeyNodeId), true, 'Expansion state preserved');
                 assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node marked as Expanded');
         });
 
@@ -677,12 +687,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Initial state: 2 instances of Key
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
                         { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
                 ]);
@@ -692,7 +703,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 assert.strictEqual(keyNode!.label.includes('(2)'), true, 'Should show 2 instances');
                 
                 // Remove one instance
-                const locations = attributeMap.get('Key')!;
+                const locations = repo.getAttributeLocations('Key')!;
                 locations.splice(0, 1);
                 
                 children = provider.getChildren();
@@ -700,8 +711,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 assert.strictEqual(keyNode!.label.includes('(1)'), true, 'Should show 1 instance after removal');
                 
                 // Add two more instances to get 3
-                attributeMap.set('Key', [
-                        ...attributeMap.get('Key')!,
+                const currentLocations = repo.getAttributeLocations('Key') || [];
+                repo.setAttributeLocations('Key', [
+                        ...currentLocations,
                         { file: '/test/Entity.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
                         { file: '/test/Model.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
                 ]);
@@ -715,12 +727,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key attribute in 2 files
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'class', targetName: 'User' }, namespace: 'Models' },
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
                         { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
@@ -739,19 +752,22 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersFileNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 assert.strictEqual(usersFileNode !== undefined, true, 'Users.cs should exist');
                 
-                const usersFileNodeId = (provider as any).getNodeId(usersFileNode);
+                const expansionMgr = provider.getExpansionManager();
+                const usersFileNodeId = expansionMgr.getNodeId(usersFileNode);
                 assert.strictEqual(usersFileNodeId.includes('/test/Users.cs'), true, 'File node ID should be based on file path');
                 
                 // Simulate user expanding the file node
-                (provider as any).expandedNodeIds.add(usersFileNodeId);
-                assert.strictEqual((provider as any).expandedNodeIds.has(usersFileNodeId), true, 'File node should be marked as expanded');
+                expansionMgr.markExpanded(usersFileNodeId);
+                assert.strictEqual(expansionMgr.isExpanded(usersFileNodeId), true, 'File node should be marked as expanded');
                 
                 // Simulate attribute addition in different file
-                attributeMap.get('Key')!.push({
+                const currentLocations = repo.getAttributeLocations('Key') || [];
+                currentLocations.push({
                         file: '/test/Entity.cs',
                         attribute: { fullName: 'Key', name: 'Key', line: 20, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' },
                         namespace: 'Models'
                 });
+                repo.setAttributeLocations('Key', currentLocations);
                 
                 // Get updated children
                 const updatedFileChildren = provider.getChildren(keyNode);
@@ -761,9 +777,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
                 assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
                 
-                const updatedUsersNodeId = (provider as any).getNodeId(updatedUsersNode);
+                const updatedUsersNodeId = expansionMgr.getNodeId(updatedUsersNode);
                 assert.strictEqual(updatedUsersNodeId, usersFileNodeId, 'File node ID should remain stable');
-                assert.strictEqual((provider as any).expandedNodeIds.has(updatedUsersNodeId), true, 'Expanded state should be preserved');
+                assert.strictEqual(expansionMgr.isExpanded(updatedUsersNodeId), true, 'Expanded state should be preserved');
                 assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'File node should be marked as Expanded');
         });
 
@@ -771,12 +787,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set hierarchy mode
-                (provider as any).showNamespaceHierarchy = true;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(true);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key attribute in Models namespace, 2 files
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'MyProject.Models' },
                         { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'MyProject.Models' }
                 ]);
@@ -803,11 +820,12 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Find and expand Users.cs
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
-                const usersNodeId = (provider as any).getNodeId(usersNode);
-                (provider as any).expandedNodeIds.add(usersNodeId);
+                const expansionMgr = provider.getExpansionManager();
+                const usersNodeId = expansionMgr.getNodeId(usersNode);
+                expansionMgr.markExpanded(usersNodeId);
                 
                 // Add new attribute in same namespace
-                attributeMap.set('Required', [
+                repo.setAttributeLocations('Required', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required', line: 6, column: 0, arguments: '', targetElement: 'property', targetName: 'Name' }, namespace: 'MyProject.Models' }
                 ]);
                 
@@ -816,7 +834,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
                 assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
-                assert.strictEqual((provider as any).expandedNodeIds.has(usersNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(expansionMgr.isExpanded(usersNodeId), true, 'Expansion state preserved');
                 assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
         });
 
@@ -824,12 +842,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key attribute in 2 files
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
                         { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 15, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
@@ -842,12 +861,14 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Expand Users.cs
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
-                const usersNodeId = (provider as any).getNodeId(usersNode);
-                (provider as any).expandedNodeIds.add(usersNodeId);
+                const expansionMgr = provider.getExpansionManager();
+                const usersNodeId = expansionMgr.getNodeId(usersNode);
+                expansionMgr.markExpanded(usersNodeId);
                 
                 // Remove all occurrences from Users.cs
-                const updatedLocations = attributeMap.get('Key')!.filter((loc: any) => loc.file !== '/test/Users.cs');
-                attributeMap.set('Key', updatedLocations);
+                const currentLocations = repo.getAttributeLocations('Key') || [];
+                const updatedLocations = currentLocations.filter((loc: any) => loc.file !== '/test/Users.cs');
+                repo.setAttributeLocations('Key', updatedLocations);
                 
                 // Get updated file children
                 fileChildren = provider.getChildren(keyNode);
@@ -865,12 +886,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key attribute with 2 occurrences in Users.cs
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'class', targetName: 'User' }, namespace: 'Models' },
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
@@ -884,8 +906,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
                 // Expand the file node
-                const usersNodeId = (provider as any).getNodeId(usersNode);
-                (provider as any).expandedNodeIds.add(usersNodeId);
+                const expansionMgr = provider.getExpansionManager();
+                const usersNodeId = expansionMgr.getNodeId(usersNode);
+                expansionMgr.markExpanded(usersNodeId);
                 
                 // Get the occurrences (children of file node)
                 const occurrenceChildren = provider.getChildren(usersNode);
@@ -899,12 +922,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key attribute
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
                 
@@ -914,11 +938,12 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const fileChildren = provider.getChildren(keyNode);
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
-                const usersNodeId = (provider as any).getNodeId(usersNode);
-                (provider as any).expandedNodeIds.add(usersNodeId);
+                const expansionMgr = provider.getExpansionManager();
+                const usersNodeId = expansionMgr.getNodeId(usersNode);
+                expansionMgr.markExpanded(usersNodeId);
                 
                 // Now add a different attribute to the same file
-                attributeMap.set('Required', [
+                repo.setAttributeLocations('Required', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required', line: 6, column: 0, arguments: '', targetElement: 'property', targetName: 'Name' }, namespace: 'Models' }
                 ]);
                 
@@ -928,7 +953,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
                 assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
-                assert.strictEqual((provider as any).expandedNodeIds.has(usersNodeId), true, 'Expansion state preserved');
+                assert.strictEqual(expansionMgr.isExpanded(usersNodeId), true, 'Expansion state preserved');
                 assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
         });
 
@@ -936,12 +961,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
                 
@@ -950,7 +976,8 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const fileChildren = provider.getChildren(keyNode);
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
-                const nodeId = (provider as any).getNodeId(usersNode);
+                const expansionMgr = provider.getExpansionManager();
+                const nodeId = expansionMgr.getNodeId(usersNode);
                 
                 // File node ID should have format: file:path:attr:attributeName
                 assert.strictEqual(nodeId.startsWith('file:'), true, 'File node ID should start with "file:"');
@@ -962,12 +989,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
                 
                 // Set flat mode
-                (provider as any).showNamespaceHierarchy = false;
+                const settingsMgr = provider.getSettingsManager();
+                settingsMgr.setNamespaceHierarchyEnabled(false);
                 
-                const attributeMap = (provider as any).attributeMap;
+                const repo = provider.getRepository();
                 
                 // Setup: Key in 2 files
-                attributeMap.set('Key', [
+                repo.setAttributeLocations('Key', [
                         { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key', line: 5, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' },
                         { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key', line: 10, column: 0, arguments: '', targetElement: 'property', targetName: 'Id' }, namespace: 'Models' }
                 ]);
@@ -978,8 +1006,9 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Expand only Users.cs
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
-                const usersNodeId = (provider as any).getNodeId(usersNode);
-                (provider as any).expandedNodeIds.add(usersNodeId);
+                const expansionMgr = provider.getExpansionManager();
+                const usersNodeId = expansionMgr.getNodeId(usersNode);
+                expansionMgr.markExpanded(usersNodeId);
                 
                 // Get updated file children
                 const updatedFileChildren = provider.getChildren(keyNode);
@@ -990,6 +1019,191 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Users should be Expanded');
                 assert.strictEqual(updatedProductNode.collapsibleState, vscode.TreeItemCollapsibleState.Collapsed, 'Product should be Collapsed');
         });
+});
+
+suite('CSharpParser Multi-Line Attribute Tests', () => {
+	test('should parse multiple stacked attributes on enum', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Serializable]
+[Flags]
+public enum UserRole { }
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		assert.strictEqual(attrs.length, 2, 'Should find 2 attributes');
+		assert.strictEqual(attrs[0].name, 'Serializable', 'First attribute should be Serializable');
+		assert.strictEqual(attrs[0].targetElement, 'enum', 'Serializable should target enum');
+		assert.strictEqual(attrs[1].name, 'Flags', 'Second attribute should be Flags');
+		assert.strictEqual(attrs[1].targetElement, 'enum', 'Flags should target enum');
+	});
+
+	test('should parse attributes on class with namespaced attributes', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Serializable]
+[Repository("UserRepository")]
+[ApiEndpoint("/api/users", "POST")]
+public class User { }
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		assert.strictEqual(attrs.length, 3, 'Should find 3 attributes');
+		assert.strictEqual(attrs[0].targetElement, 'class', 'Serializable should target class');
+		assert.strictEqual(attrs[1].targetElement, 'class', 'Repository should target class');
+		assert.strictEqual(attrs[2].targetElement, 'class', 'ApiEndpoint should target class');
+	});
+
+	test('should parse attributes on enum members', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Serializable]
+[Flags]
+public enum UserRole
+{
+	[System.ComponentModel.DataAnnotations.Display(Name = "Guest")]
+	Guest = 1,
+	
+	[System.ComponentModel.DataAnnotations.Display(Name = "Administrator")]
+	Administrator = 8
+}
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		const enumMemberAttrs = attrs.filter((a: any) => a.targetElement === 'enumMember');
+		assert.strictEqual(enumMemberAttrs.length >= 2, true, 'Should find at least 2 enum member attributes');
+		assert.strictEqual(enumMemberAttrs[0].fullName, 'System.ComponentModel.DataAnnotations.Display', 'Should parse Display attribute');
+		assert.strictEqual(enumMemberAttrs[0].targetName, 'Guest', 'Should identify Guest as target');
+	});
+
+	test('should parse multiple attributes on property', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Required]
+[StringLength(255, MinimumLength = 3)]
+[Validate(3, 255)]
+public string Name { get; set; } = string.Empty;
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		assert.strictEqual(attrs.length, 3, 'Should find 3 attributes');
+		assert.strictEqual(attrs[0].targetElement, 'property', 'Required should target property');
+		assert.strictEqual(attrs[0].targetName, 'Name', 'Should identify Name as target property');
+		assert.strictEqual(attrs[1].name, 'StringLength', 'Second attribute should be StringLength');
+		assert.strictEqual(attrs[1].targetElement, 'property', 'StringLength should target property');
+		assert.strictEqual(attrs[2].name, 'Validate', 'Third attribute should be Validate');
+		assert.strictEqual(attrs[2].targetElement, 'property', 'Validate should target property');
+	});
+
+	test('should parse method attributes with return type target', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[ApiEndpoint("/api/users/register", "POST")]
+[Obsolete("Use RegisterUserAsync instead")]
+[return: NotNull]
+public User RegisterUser(string email, string username) { }
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		assert.strictEqual(attrs.length >= 2, true, 'Should find at least 2 attributes');
+		const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
+		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete attribute');
+		assert.strictEqual(obsoleteAttr.targetElement, 'method', 'Obsolete should target method');
+		assert.strictEqual(obsoleteAttr.targetName, 'RegisterUser', 'Should identify RegisterUser as target');
+	});
+
+	test('should parse attributes separated by pragmas', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[ApiEndpoint("/api/users/validate", "POST")]
+#pragma warning disable CS0657
+[property: Obsolete("Use new validation")]
+#pragma warning restore CS0657
+public bool ValidateUser(string username) { }
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		const apiAttr = attrs.find((a: any) => a.name === 'ApiEndpoint');
+		assert.strictEqual(apiAttr !== undefined, true, 'Should find ApiEndpoint attribute');
+		assert.strictEqual(apiAttr.targetElement !== 'unknown', true, 'ApiEndpoint should have known target');
+	});
+
+	test('should parse parameter attributes with validation', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+public User RegisterUser(
+	[Validate(5, 100)] string email, 
+	[Validate(3, 50)] string username)
+{ }
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		assert.strictEqual(attrs.length >= 2, true, 'Should find parameter attributes');
+		const validateAttrs = attrs.filter((a: any) => a.name === 'Validate');
+		assert.strictEqual(validateAttrs.length >= 2, true, 'Should find at least 2 Validate attributes');
+		assert.strictEqual(validateAttrs[0].parameterName, 'email', 'First should be for email parameter');
+		assert.strictEqual(validateAttrs[1].parameterName, 'username', 'Second should be for username parameter');
+	});
+
+	test('should parse Obsolete attribute on interface method', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Serializable]
+[DataContract]
+public interface IPaymentService
+{
+	[DataMember]
+	Guid ProcessId { get; }
+
+	[Obsolete("Use ProcessPaymentAsync instead")]
+	bool ProcessPayment(decimal amount, string description);
+}
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
+		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete attribute');
+		assert.strictEqual(obsoleteAttr.targetElement, 'method', 'Obsolete should target the method');
+		assert.strictEqual(obsoleteAttr.targetName, 'ProcessPayment', 'Should identify ProcessPayment as target');
+	});
+
+	test('should parse Obsolete attribute on interface declaration', () => {
+		const { CSharpParser } = require('../csharpParser');
+		
+		const code = `
+[Obsolete("Use IArticleServiceV2 instead")]
+[Serializable]
+public interface IArticleService
+{
+	Article GetArticle(int id);
+	
+	[Obsolete("Use SearchArticlesAsync instead")]
+	Article[] SearchArticles(string keyword);
+}
+		`;
+		
+		const attrs = CSharpParser.parseAttributes(code);
+		const interfaceObsoleteAttrs = attrs.filter((a: any) => a.name === 'Obsolete');
+		assert.strictEqual(interfaceObsoleteAttrs.length >= 2, true, 'Should find at least 2 Obsolete attributes');
+		
+		// First Obsolete should target the interface itself
+		const interfaceObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'interface');
+		assert.strictEqual(interfaceObsolete !== undefined, true, 'Should find Obsolete on interface');
+		assert.strictEqual(interfaceObsolete.targetName, 'IArticleService', 'Should identify IArticleService as target');
+		
+		// Second Obsolete should target the SearchArticles method
+		const methodObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'method');
+		assert.strictEqual(methodObsolete !== undefined, true, 'Should find Obsolete on method');
+		assert.strictEqual(methodObsolete.targetName, 'SearchArticles', 'Should identify SearchArticles as target');
+	});
 });
 
 
