@@ -4,7 +4,6 @@
   "description": "Listing Building Blocks",
   "publisher": "GHbrazel",
   "version": "0.0.1",
-  "icon": "$(telescope)",
   "repository": "https://github.com/GHbrazel/ArchiView",
   "engines": {
     "vscode": "^1.107.0"
