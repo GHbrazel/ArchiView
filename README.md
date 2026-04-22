@@ -1,6 +1,6 @@
-# MetaLens README
+# MetaLens
 
-This is the README for your extension "MetaLens". MetaLens helps you understand and navigate annotation-driven codebases by scanning and surfacing metadata of C# attributes.
+MetaLens helps you understand and navigate annotation-driven codebases by scanning and surfacing metadata of C# attributes.
 
 ## Features
 
