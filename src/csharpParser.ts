@@ -212,15 +212,19 @@ export class CSharpParser {
   ): AttributeInfo[] {
     const attributes: AttributeInfo[] = [];
     let currentPos = 0;
+    let searchFromLine = lineIndex; // Track where to search for the next attribute
 
     while (currentPos < attributeText.length && attributeText[currentPos] === '[') {
-      // Extract attribute to find its name for line lookup
       const result = this.extractSingleAttribute(attributeText, currentPos, lineIndex, targetName, lines);
       
       if (result.attribute) {
         // Determine the actual line this attribute appears on by searching source lines
-        const actualLineIndex = this.findAttributeLineInSource(result.attribute.name, lineIndex, lines);
+        // Start searching from the last found line or the starting line
+        const actualLineIndex = this.findAttributeLineInSource(result.attribute.name, searchFromLine, lines);
         result.attribute.line = actualLineIndex + 1;
+        
+        // For the next attribute, search from the next line after this one
+        searchFromLine = actualLineIndex + 1;
         
         attributes.push(result.attribute);
         currentPos = result.nextPos;

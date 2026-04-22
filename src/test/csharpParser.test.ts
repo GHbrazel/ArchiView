@@ -1535,5 +1535,55 @@ public Product CreateProduct([StringLength(100, MinimumLength = 3)] string name,
                         assert.strictEqual(apiEndpointAttr!.line < obsoleteAttr!.line, true, 'ApiEndpoint should come before Obsolete');
                         assert.strictEqual(obsoleteAttr!.line < notNullAttr!.line, true, 'Obsolete should come before NotNull');
                 });
+
+                test('should correctly assign line numbers to assembly attributes on separate lines', () => {
+                        const code = `using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("AnotherExampleCsProject")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyProductAttribute("AnotherExampleCsProject")]
+[assembly: System.Reflection.AssemblyTitleAttribute("AnotherExampleCsProject")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        
+                        // Find each assembly attribute
+                        const companyAttr = attrs.find((a: any) => a.name === 'AssemblyCompanyAttribute');
+                        const configAttr = attrs.find((a: any) => a.name === 'AssemblyConfigurationAttribute');
+                        const fileVersionAttr = attrs.find((a: any) => a.name === 'AssemblyFileVersionAttribute');
+                        const infoVersionAttr = attrs.find((a: any) => a.name === 'AssemblyInformationalVersionAttribute');
+                        const productAttr = attrs.find((a: any) => a.name === 'AssemblyProductAttribute');
+                        const titleAttr = attrs.find((a: any) => a.name === 'AssemblyTitleAttribute');
+                        const versionAttr = attrs.find((a: any) => a.name === 'AssemblyVersionAttribute');
+
+                        // Verify all attributes were found
+                        assert.strictEqual(companyAttr !== undefined, true, 'Should find AssemblyCompanyAttribute');
+                        assert.strictEqual(configAttr !== undefined, true, 'Should find AssemblyConfigurationAttribute');
+                        assert.strictEqual(fileVersionAttr !== undefined, true, 'Should find AssemblyFileVersionAttribute');
+                        assert.strictEqual(infoVersionAttr !== undefined, true, 'Should find AssemblyInformationalVersionAttribute');
+                        assert.strictEqual(productAttr !== undefined, true, 'Should find AssemblyProductAttribute');
+                        assert.strictEqual(titleAttr !== undefined, true, 'Should find AssemblyTitleAttribute');
+                        assert.strictEqual(versionAttr !== undefined, true, 'Should find AssemblyVersionAttribute');
+
+                        // Verify each is on the correct line (lines 4-10)
+                        assert.strictEqual(companyAttr!.line, 4, 'AssemblyCompanyAttribute should be on line 4');
+                        assert.strictEqual(configAttr!.line, 5, 'AssemblyConfigurationAttribute should be on line 5');
+                        assert.strictEqual(fileVersionAttr!.line, 6, 'AssemblyFileVersionAttribute should be on line 6');
+                        assert.strictEqual(infoVersionAttr!.line, 7, 'AssemblyInformationalVersionAttribute should be on line 7');
+                        assert.strictEqual(productAttr!.line, 8, 'AssemblyProductAttribute should be on line 8');
+                        assert.strictEqual(titleAttr!.line, 9, 'AssemblyTitleAttribute should be on line 9');
+                        assert.strictEqual(versionAttr!.line, 10, 'AssemblyVersionAttribute should be on line 10');
+
+                        // Verify they're in ascending order
+                        assert.strictEqual(companyAttr!.line < configAttr!.line, true, 'CompanyAttribute should come before ConfigurationAttribute');
+                        assert.strictEqual(configAttr!.line < fileVersionAttr!.line, true, 'ConfigurationAttribute should come before FileVersionAttribute');
+                        assert.strictEqual(fileVersionAttr!.line < infoVersionAttr!.line, true, 'FileVersionAttribute should come before InformationalVersionAttribute');
+                        assert.strictEqual(infoVersionAttr!.line < productAttr!.line, true, 'InformationalVersionAttribute should come before ProductAttribute');
+                        assert.strictEqual(productAttr!.line < titleAttr!.line, true, 'ProductAttribute should come before TitleAttribute');
+                        assert.strictEqual(titleAttr!.line < versionAttr!.line, true, 'TitleAttribute should come before VersionAttribute');
+                });
         });
 });
