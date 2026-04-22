@@ -1494,5 +1494,46 @@ namespace TestNamespace
 			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INonExistent');
 			assert.strictEqual(signatures.length, 0, 'Should return empty array for non-existent interface');
 		});
-	});
+
+                test('should correctly assign line numbers to stacked attributes on different lines', () => {
+                        const code = `
+[ApiEndpoint("/api/products/create", "POST")]
+[Obsolete("Use CreateProductAsync instead")]
+[return: NotNull]
+public Product CreateProduct([StringLength(100, MinimumLength = 3)] string name, [Range(0.01, 10000)] decimal price)
+{
+    return new Product { Name = name, Price = price };
+}
+                `;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        
+                        // Find each attribute
+                        const apiEndpointAttr = attrs.find((a: any) => a.name === 'ApiEndpoint');
+                        const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
+                        const notNullAttr = attrs.find((a: any) => a.name === 'NotNull');
+                        const stringLengthAttr = attrs.find((a: any) => a.name === 'StringLength');
+                        const rangeAttr = attrs.find((a: any) => a.name === 'Range');
+
+                        // Verify all attributes were found
+                        assert.strictEqual(apiEndpointAttr !== undefined, true, 'Should find ApiEndpoint');
+                        assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete');
+                        assert.strictEqual(notNullAttr !== undefined, true, 'Should find NotNull');
+                        assert.strictEqual(stringLengthAttr !== undefined, true, 'Should find StringLength');
+                        assert.strictEqual(rangeAttr !== undefined, true, 'Should find Range');
+
+                        // Verify line numbers are different and in correct order
+                        assert.strictEqual(apiEndpointAttr!.line, 2, 'ApiEndpoint should be on line 2');
+                        assert.strictEqual(obsoleteAttr!.line, 3, 'Obsolete should be on line 3');
+                        assert.strictEqual(notNullAttr!.line, 4, 'NotNull should be on line 4');
+                        // StringLength is on line 5 (in parameter list)
+                        assert.strictEqual(stringLengthAttr!.line, 5, 'StringLength should be on line 5');
+                        // Range is also on line 5 (same line as StringLength in parameters)
+                        assert.strictEqual(rangeAttr!.line, 5, 'Range should be on line 5');
+
+                        // Verify they're in ascending order (except parameters which can be on same line)
+                        assert.strictEqual(apiEndpointAttr!.line < obsoleteAttr!.line, true, 'ApiEndpoint should come before Obsolete');
+                        assert.strictEqual(obsoleteAttr!.line < notNullAttr!.line, true, 'Obsolete should come before NotNull');
+                });
+        });
 });

@@ -202,6 +202,7 @@ export class CSharpParser {
   /**
    * Extracts all stacked attributes from an attribute block
    * Example: [Attribute1][Attribute2] → two separate attributes
+   * Correctly calculates line numbers for attributes spanning multiple lines
    */
   private static extractStackedAttributes(
     attributeText: string,
@@ -213,9 +214,14 @@ export class CSharpParser {
     let currentPos = 0;
 
     while (currentPos < attributeText.length && attributeText[currentPos] === '[') {
+      // Extract attribute to find its name for line lookup
       const result = this.extractSingleAttribute(attributeText, currentPos, lineIndex, targetName, lines);
       
       if (result.attribute) {
+        // Determine the actual line this attribute appears on by searching source lines
+        const actualLineIndex = this.findAttributeLineInSource(result.attribute.name, lineIndex, lines);
+        result.attribute.line = actualLineIndex + 1;
+        
         attributes.push(result.attribute);
         currentPos = result.nextPos;
       } else {
@@ -224,6 +230,31 @@ export class CSharpParser {
     }
 
     return attributes;
+  }
+
+  /**
+   * Finds the actual source line where an attribute with a given name appears
+   * by searching from startLineIndex onwards
+   */
+  private static findAttributeLineInSource(attributeName: string, startLineIndex: number, lines: string[]): number {
+    // Search from startLineIndex onwards to find this attribute
+    for (let i = startLineIndex; i < lines.length; i++) {
+      const line = lines[i];
+      // Check if this line contains an attribute with the target name
+      if (line.includes(`[${attributeName}`) || line.includes(`[${attributeName} `) || line.includes(`[${attributeName}(`)) {
+        return i;
+      }
+      // Also check for return: prefix
+      if (line.includes(`[return: ${attributeName}`) || line.includes(`[return:${attributeName}`)) {
+        return i;
+      }
+      // Check for other target specifiers
+      if (line.match(new RegExp(`\\[[a-z]+:\\s*${attributeName}`))) {
+        return i;
+      }
+    }
+    // Fallback to startLineIndex if not found
+    return startLineIndex;
   }
 
   /**
