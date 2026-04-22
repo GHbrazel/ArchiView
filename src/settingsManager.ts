@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
  * Load and listen to settings changes
  */
 export class SettingsManager {
-  private showNamespaceHierarchy: boolean = true;
+  private showNamespaceHierarchy: boolean = false;
   private onSettingsChanged: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
   readonly onSettingsChangedEvent = this.onSettingsChanged.event;
 
@@ -15,13 +15,13 @@ export class SettingsManager {
   }
 
   private loadVsCodeConfigurationSettings(): void {
-    const config = vscode.workspace.getConfiguration('archiview');
-    this.showNamespaceHierarchy = config.get('showNamespaceHierarchy', true);
+    const config = vscode.workspace.getConfiguration('MetaLens');
+    this.showNamespaceHierarchy = config.get('showNamespaceHierarchy', false);
   }
 
   private setupConfigListener(): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('archiview')) {
+      if (event.affectsConfiguration('MetaLens')) {
         this.loadVsCodeConfigurationSettings();
         this.onSettingsChanged.fire();
       }
@@ -34,5 +34,6 @@ export class SettingsManager {
 
   setNamespaceHierarchyEnabled(enabled: boolean): void {
     this.showNamespaceHierarchy = enabled;
+    this.onSettingsChanged.fire();
   }
 }

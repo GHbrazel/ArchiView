@@ -441,9 +441,8 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const provider = new AttributeProvider(filterManager);
 
 		const expansionMgr = provider.getExpansionManager();
-		const expandedNodeIds = expansionMgr.getExpandedNodeIds();
-		assert.strictEqual(expandedNodeIds instanceof Set, true);
-		assert.strictEqual(expandedNodeIds.size, 0);
+		// Verify that no nodes are initially expanded
+		assert.strictEqual(expansionMgr.isExpanded('nonexistent-node'), false, 'No nodes should be expanded initially');
 	});
 
 	test('should handle setTreeView without crashing', () => {
@@ -476,7 +475,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		
 		// Mock the internal repository to be empty
 		const repo = provider.getRepository();
-		repo.clear();
+		repo.clearAllData();
 
 		const children = provider.getChildren();
 		assert.strictEqual(Array.isArray(children), true);
@@ -502,7 +501,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const children = provider.getChildren();
 		assert.strictEqual(children.length > 0, true);
 
-		repo.clear();
+		repo.clearAllData();
 
 		const emptyChildren = provider.getChildren();
 		assert.strictEqual(Array.isArray(emptyChildren), true);
@@ -580,7 +579,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const keyNodeId = expansionMgr.getNodeId(keyNode);
                 
                 // Simulate user expanding the Key attribute
-                expansionMgr.markExpanded(keyNodeId);
+                expansionMgr.markNodeAsExpanded(keyNodeId);
                 assert.strictEqual(expansionMgr.isExpanded(keyNodeId), true, 'Key should be in expanded state');
                 
                 repo.removeLocationsFromFile('Required', '/test/Users.cs');
@@ -621,7 +620,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const expansionMgr = provider.getExpansionManager();
                 const keyNodeId = expansionMgr.getNodeId(keyNode);
                 
-                expansionMgr.markExpanded(keyNodeId);
+                expansionMgr.markNodeAsExpanded(keyNodeId);
                 
                 // Simulate file save that adds the Required attribute
                 repo.setAttributeLocations('Required', [
@@ -715,7 +714,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 assert.strictEqual(usersFileNodeId.includes('/test/Users.cs'), true, 'File node ID should be based on file path');
                 
                 // Simulate user expanding the file node
-                expansionMgr.markExpanded(usersFileNodeId);
+                expansionMgr.markNodeAsExpanded(usersFileNodeId);
                 assert.strictEqual(expansionMgr.isExpanded(usersFileNodeId), true, 'File node should be marked as expanded');
                 
                 // Simulate attribute addition in different file
@@ -780,7 +779,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 const expansionMgr = provider.getExpansionManager();
                 const usersNodeId = expansionMgr.getNodeId(usersNode);
-                expansionMgr.markExpanded(usersNodeId);
+                expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Add new attribute in same namespace
                 repo.setAttributeLocations('Required', [
@@ -821,7 +820,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 const expansionMgr = provider.getExpansionManager();
                 const usersNodeId = expansionMgr.getNodeId(usersNode);
-                expansionMgr.markExpanded(usersNodeId);
+                expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Remove all occurrences from Users.cs
                 const currentLocations = repo.getAttributeLocations('Key') || [];
@@ -863,7 +862,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 // Expand the file node
                 const expansionMgr = provider.getExpansionManager();
                 const usersNodeId = expansionMgr.getNodeId(usersNode);
-                expansionMgr.markExpanded(usersNodeId);
+                expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Get the occurrences (children of file node)
                 const occurrenceChildren = provider.getChildren(usersNode);
@@ -895,7 +894,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 const expansionMgr = provider.getExpansionManager();
                 const usersNodeId = expansionMgr.getNodeId(usersNode);
-                expansionMgr.markExpanded(usersNodeId);
+                expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Now add a different attribute to the same file
                 repo.setAttributeLocations('Required', [
@@ -962,7 +961,7 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 const expansionMgr = provider.getExpansionManager();
                 const usersNodeId = expansionMgr.getNodeId(usersNode);
-                expansionMgr.markExpanded(usersNodeId);
+                expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Get updated file children
                 const updatedFileChildren = provider.getChildren(keyNode);

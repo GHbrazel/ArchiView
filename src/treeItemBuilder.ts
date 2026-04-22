@@ -64,7 +64,7 @@ export class TreeItemBuilder {
       vscode.TreeItemCollapsibleState.Collapsed,
       filePath,
       undefined,
-      attributeName
+      fileNodeId
     );
 
     const isExpanded = this.expansionManager.isExpanded(tempItem);
@@ -74,7 +74,7 @@ export class TreeItemBuilder {
       isExpanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
       filePath,
       undefined,
-      attributeName
+      fileNodeId
     );
   }
 

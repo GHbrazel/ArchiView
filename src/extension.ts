@@ -60,7 +60,7 @@ function registerShowFilter(attributeProvider: AttributeProvider, filterManager:
 function registerToggleNamespaceHierarchy() {
 	return vscode.commands.registerCommand('MetaLens.toggleNamespaceHierarchy', async () => {
 		const config = vscode.workspace.getConfiguration('MetaLens');
-		const currentState = config.get('showNamespaceHierarchy', true);
+		const currentState = config.get('showNamespaceHierarchy', false);
 
 		const options = [
 			{

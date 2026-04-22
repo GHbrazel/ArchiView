@@ -390,7 +390,20 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   private getAttributeOccurrenceChildren(element: AttributeItem): AttributeItem[] {
-    const attributeName = element.context!;
+    // Extract attribute name from context
+    // Context can be in two formats:
+    // - Hierarchy mode: "attribute|AttributeName|Namespace"
+    // - Flat mode: "file:/path/to/file.cs:attr:AttributeName"
+    let attributeName = element.context!;
+    
+    if (attributeName.startsWith('attribute|')) {
+      // Hierarchy mode: extract first part after 'attribute|'
+      attributeName = attributeName.replace('attribute|', '').split('|')[0];
+    } else if (attributeName.startsWith('file:') && attributeName.includes(':attr:')) {
+      // Flat mode: extract part after ':attr:'
+      attributeName = attributeName.split(':attr:')[1];
+    }
+
     const locations = this.repository.getAttributeLocations(attributeName);
 
     const fileLocations = locations
