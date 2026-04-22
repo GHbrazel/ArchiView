@@ -17,10 +17,11 @@ export class AttributeItem extends vscode.TreeItem {
     public collapsibleState: vscode.TreeItemCollapsibleState,
     public file?: string,
     public line?: number,
-    public context?: string
+    public context?: string,
+    public tooltip?: vscode.MarkdownString
   ) {
     super(label, collapsibleState);
-    this.tooltip = context;
+    this.tooltip = tooltip ?? context ? new vscode.MarkdownString(context) : undefined;
     
     if (file && line !== undefined) {
       this.description = `${path.basename(file)}:${line}`;

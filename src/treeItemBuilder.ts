@@ -81,7 +81,7 @@ export class TreeItemBuilder {
   /**
    * Build an attribute occurrence tree item (leaf level)
    */
-  buildAttributeOccurrenceItem(filePath: string, attribute: AttributeInfo, tooltipText: string): AttributeItem {
+  buildAttributeOccurrenceItem(filePath: string, attribute: AttributeInfo, tooltipText: vscode.MarkdownString): AttributeItem {
     const label = this.buildAttributeOccurrenceLabel(attribute);
 
     return new AttributeItem(
@@ -91,6 +91,7 @@ export class TreeItemBuilder {
         : vscode.TreeItemCollapsibleState.None,
       filePath,
       attribute.line,
+      tooltipText.value.toString(),
       tooltipText
     );
   }
@@ -125,7 +126,7 @@ export class TreeItemBuilder {
     return label;
   }
 
-  buildAttributeTooltip(attr: AttributeInfo): string {
+  buildAttributeTooltip(attr: AttributeInfo): vscode.MarkdownString {
     const lines: string[] = [];
     
     lines.push(`**Attribute:** ${(attr.fullName as string)}`);
@@ -142,6 +143,6 @@ export class TreeItemBuilder {
       lines.push(`**Name:** ${(attr.targetName as string)}`);
     }
     
-    return lines.join('\n');
+    return new vscode.MarkdownString(lines.join('\n\n'));
   }
 }
