@@ -1667,5 +1667,146 @@ public string Some
                         assert.strictEqual(maxLengthAttr!.targetName, 'Some', 'Property name should be Some');
                         assert.strictEqual(minLengthAttr!.targetName, 'Some', 'Property name should be Some');
                 });
+
+                test('should correctly identify readonly property', () => {
+                        const code = `[Obsolete]
+public readonly string Name { get; }`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+
+                        assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute');
+                        assert.strictEqual(obsAttr!.targetElement, 'property', 'Should identify readonly property, not unknown');
+                        assert.strictEqual(obsAttr!.targetName, 'Name', 'Property name should be Name');
+                });
+
+                test('should correctly identify init-only property', () => {
+                        const code = `[Required]
+public string Email { get; init; }`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const reqAttr = attrs.find((a: any) => a.name === 'Required');
+
+                        assert.strictEqual(reqAttr !== undefined, true, 'Should find Required attribute');
+                        assert.strictEqual(reqAttr!.targetElement, 'property', 'Should identify init-only property, not unknown');
+                        assert.strictEqual(reqAttr!.targetName, 'Email', 'Property name should be Email');
+                });
+
+                test('should correctly identify indexer', () => {
+                        const code = `[Obsolete]
+public string this[int index] 
+{
+    get { return _items[index]; }
+    set { _items[index] = value; }
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        
+                        // Note: Indexers may be detected as methods or property depending on implementation
+                        // The important thing is they are not 'unknown'
+                        const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+                        assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute on indexer');
+                        assert.notStrictEqual(obsAttr!.targetElement, 'unknown', 'Indexer target should not be unknown');
+                });
+
+                test('should correctly identify readonly struct', () => {
+                        const code = `[Serializable]
+public readonly struct Point
+{
+    public int X { get; }
+    public int Y { get; }
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const serAttr = attrs.find((a: any) => a.name === 'Serializable');
+
+                        assert.strictEqual(serAttr !== undefined, true, 'Should find Serializable attribute');
+                        assert.strictEqual(serAttr!.targetElement, 'struct', 'Should identify readonly struct as struct');
+                        assert.strictEqual(serAttr!.targetName, 'Point', 'Struct name should be Point');
+                });
+
+                test('should correctly parse attributes with complex nested generics', () => {
+                        const code = `[ValidationType(typeof(Dictionary<string, List<Item>>))]
+public class OrderProcessor
+{
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const valAttr = attrs.find((a: any) => a.name === 'ValidationType');
+
+                        assert.strictEqual(valAttr !== undefined, true, 'Should find ValidationType attribute');
+                        assert.strictEqual(valAttr!.targetElement, 'class', 'Should identify class target');
+                        // The key is that it parses without error and identifies the target correctly
+                });
+
+                test('should correctly parse attributes with array initializers', () => {
+                        const code = `[Values(new[] { 1, 2, 3, 4, 5 })]
+public class DataTest
+{
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const valAttr = attrs.find((a: any) => a.name === 'Values');
+
+                        assert.strictEqual(valAttr !== undefined, true, 'Should find Values attribute');
+                        assert.strictEqual(valAttr!.targetElement, 'class', 'Should identify class target');
+                });
+
+                test('should correctly parse attributes with string containing quotes', () => {
+                        const code = `[Description("It\\'s a \\"test\\"")]
+public class TestClass
+{
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const descAttr = attrs.find((a: any) => a.name === 'Description');
+
+                        assert.strictEqual(descAttr !== undefined, true, 'Should find Description attribute');
+                        assert.strictEqual(descAttr!.targetElement, 'class', 'Should identify class target');
+                });
+
+                test('should correctly identify static property', () => {
+                        const code = `[Obsolete]
+public static string DefaultValue { get; set; }`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+
+                        assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute');
+                        assert.strictEqual(obsAttr!.targetElement, 'property', 'Should identify static property as property, not unknown');
+                        assert.strictEqual(obsAttr!.targetName, 'DefaultValue', 'Property name should be DefaultValue');
+                });
+
+                test('should correctly identify nullable reference type property', () => {
+                        const code = `[AllowNull]
+public string? Description { get; set; }`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const allowAttr = attrs.find((a: any) => a.name === 'AllowNull');
+
+                        assert.strictEqual(allowAttr !== undefined, true, 'Should find AllowNull attribute');
+                        assert.strictEqual(allowAttr!.targetElement, 'property', 'Should identify nullable property, not unknown');
+                        assert.strictEqual(allowAttr!.targetName, 'Description', 'Property name should be Description');
+                });
+
+                test('should correctly handle multiple attributes with different targets on same element', () => {
+                        const code = `[Serializable]
+[Obsolete("Old class")]
+public class LegacyData
+{
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        
+                        assert.strictEqual(attrs.length >= 2, true, 'Should find both attributes');
+                        
+                        const serAttr = attrs.find((a: any) => a.name === 'Serializable');
+                        const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+                        
+                        assert.strictEqual(serAttr!.targetElement, 'class', 'Serializable should target class');
+                        assert.strictEqual(obsAttr!.targetElement, 'class', 'Obsolete should target class');
+                        assert.strictEqual(serAttr!.targetName, 'LegacyData', 'Target name should be LegacyData');
+                        assert.strictEqual(obsAttr!.targetName, 'LegacyData', 'Target name should be LegacyData');
+                });
         });
 });

@@ -676,14 +676,19 @@ export class CSharpParser {
         return 'recordStruct';
       }
 
-      // Struct declaration
-      if (line.match(/^(public\s+)?(partial\s+)?struct\s+/)) {
+      // Struct declaration (including readonly structs)
+      if (line.match(/^(public\s+)?(partial\s+)?(readonly\s+)?struct\s+/)) {
         return 'struct';
       }
 
       // Delegate declaration
       if (line.match(/^(public\s+)?delegate\s+/)) {
         return 'delegate';
+      }
+
+      // Indexer - look for 'this[' pattern
+      if (line.includes('this[') && line.includes(']')) {
+        return 'property'; // Indexers are treated as properties for UI purposes
       }
 
       // Event - look for 'event' keyword
