@@ -3,7 +3,7 @@
   "displayName": "MetaLens",
   "description": "Listing Building Blocks",
   "publisher": "NikOF",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "repository": "https://github.com/GHbrazel/ArchiView",
   "engines": {
     "vscode": "^1.107.0"
