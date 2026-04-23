@@ -200,6 +200,19 @@ export class CSharpParser {
   }
 
   /**
+   * Counts the balance of parentheses in text
+   * Returns positive if more opening parens, negative if more closing parens
+   */
+  private static countParenBalance(text: string): number {
+    let balance = 0;
+    for (const char of text) {
+      if (char === '(') {balance++;}
+      if (char === ')') {balance--;}
+    }
+    return balance;
+  }
+
+  /**
    * Extracts all stacked attributes from an attribute block
    * Example: [Attribute1][Attribute2] → two separate attributes
    * Correctly calculates line numbers for attributes spanning multiple lines
@@ -1012,33 +1025,65 @@ export class CSharpParser {
       const memberMatch = trimmed.match(/^(public\s+)?(async\s+)?([\w<>\[\],\?\s]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]/);
       
       if (memberMatch) {
-        // Extract the signature up to the first ( or { or ;
+        // Extract the signature, handling multiline method signatures
         let signature = trimmed;
+        let currentLineIdx = i;
         
         // Find where the actual declaration ends
         const openParen = trimmed.indexOf('(');
         const openBrace = trimmed.indexOf('{');
         const semicolon = trimmed.indexOf(';');
         
-        // Get the earliest position
-        let endPos = trimmed.length;
-        if (openParen !== -1) {endPos = Math.min(endPos, openParen);}
-        if (openBrace !== -1) {endPos = Math.min(endPos, openBrace);}
-        if (semicolon !== -1) {endPos = Math.min(endPos, semicolon);}
-        
-        // For properties with getters/setters on same line, capture the full line
-        if (openBrace !== -1 && trimmed.includes('}')) {
-          endPos = trimmed.length;
-        } else if (openParen !== -1) {
-          // For methods, capture up to (and including) closing paren
-          let parenCount = 1;
-          let endParen = trimmed.indexOf(')', openParen);
-          if (endParen !== -1) {
-            endPos = endParen + 1;
+        if (openParen !== -1) {
+          // For methods, we need to find the closing paren (potentially on next lines)
+          let closingParenIdx = trimmed.indexOf(')', openParen);
+          
+          // If no closing paren on this line, collect lines until we find it
+          if (closingParenIdx === -1) {
+            let signatureParts = [trimmed];
+            let parenBalance = this.countParenBalance(trimmed);
+            
+            // Collect lines until parens are balanced
+            while (parenBalance > 0 && currentLineIdx + 1 < lines.length) {
+              currentLineIdx++;
+              const nextLine = lines[currentLineIdx].trim();
+              if (nextLine && !nextLine.startsWith('//')) {
+                signatureParts.push(nextLine);
+                parenBalance += this.countParenBalance(nextLine);
+              }
+            }
+            
+            // Assemble the full signature, removing excessive whitespace
+            signature = signatureParts.join(' ').trim();
+            
+            // Find the end position (up to first ; or { after completing parens)
+            let methodEndPos = signature.indexOf(';');
+            if (methodEndPos === -1) {
+              methodEndPos = signature.indexOf('{');
+            }
+            if (methodEndPos !== -1) {
+              signature = signature.substring(0, methodEndPos).trim();
+            }
+          } else {
+            // Closing paren is on the same line
+            let methodEndPos = signature.indexOf(';', closingParenIdx);
+            if (methodEndPos === -1) {
+              methodEndPos = signature.indexOf('{', closingParenIdx);
+            }
+            if (methodEndPos !== -1) {
+              signature = signature.substring(0, methodEndPos).trim();
+            } else {
+              signature = signature.substring(0, closingParenIdx + 1).trim();
+            }
           }
+        } else if (openBrace !== -1) {
+          // For properties with getters/setters
+          let propertyEndPos = signature.indexOf(';', openBrace);
+          if (propertyEndPos === -1) {
+            propertyEndPos = signature.length;
+          }
+          signature = signature.substring(0, propertyEndPos).trim();
         }
-        
-        signature = trimmed.substring(0, endPos).trim();
         
         // Only add if it's a valid signature and not a duplicate
         if (signature && !methodSignatures.some(m => m.signature === signature) && signature.length > 5) {
@@ -1046,6 +1091,11 @@ export class CSharpParser {
             signature,
             line: i + 1
           });
+        }
+        
+        // Skip the lines we just processed for multiline signatures
+        if (currentLineIdx > i) {
+          i = currentLineIdx;
         }
       }
     }

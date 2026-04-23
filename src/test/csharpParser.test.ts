@@ -1495,6 +1495,51 @@ namespace TestNamespace
 			assert.strictEqual(signatures.length, 0, 'Should return empty array for non-existent interface');
 		});
 
+		test('should correctly extract multiline interface method signatures', () => {
+			const code = `
+namespace TestNamespace
+{
+	public interface IOrderService
+	{
+		Task<OrderResult> CreateOrder(
+			string customerId,
+			List<OrderItem> items,
+			int shippingAddressId
+		);
+
+		Task<bool> UpdateOrderStatus(
+			int orderId,
+			OrderStatus status,
+			string notes = null
+		);
+
+		void CancelOrder(int orderId);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IOrderService');
+			
+			// Should extract all three methods
+			assert.strictEqual(signatures.length, 3, 'Should extract all three methods');
+			
+			// Check for CreateOrder method (multiline)
+			const createOrder = signatures.find(s => s.signature.includes('CreateOrder'));
+			assert.ok(createOrder !== undefined, 'Should find CreateOrder method');
+			assert.ok(createOrder!.signature.includes('(') && createOrder!.signature.includes('customerId'), 'CreateOrder signature should include parameters or at least opening paren');
+			
+			// Check for UpdateOrderStatus method (multiline)
+			const updateStatus = signatures.find(s => s.signature.includes('UpdateOrderStatus'));
+			assert.ok(updateStatus !== undefined, 'Should find UpdateOrderStatus method');
+			assert.ok(updateStatus!.signature.includes('(') && updateStatus!.signature.includes('orderId'), 'UpdateOrderStatus signature should include parameters or at least opening paren');
+			
+			// Check for CancelOrder method (single line)
+			const cancel = signatures.find(s => s.signature.includes('CancelOrder'));
+			assert.ok(cancel !== undefined, 'Should find CancelOrder method');
+			
+			// Verify line numbers are in order
+			assert.ok(createOrder!.line < updateStatus!.line, 'CreateOrder should be before UpdateOrderStatus');
+			assert.ok(updateStatus!.line < cancel!.line, 'UpdateOrderStatus should be before CancelOrder');
+		});
+
                 test('should correctly assign line numbers to stacked attributes on different lines', () => {
                         const code = `
 [ApiEndpoint("/api/products/create", "POST")]
