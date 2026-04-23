@@ -15,7 +15,14 @@ MetaLens helps you understand and navigate annotation-driven codebases by scanni
 
 ## Release Notes
 
-### 1.0.0
+### 0.0.2
+
+- Fix report issue command
+- Fix some parameter: unknown cases
+- Fix interface method signature not shown
+- Add coding guidlines copilot-instructions.md
+
+### 0.0.1
 
 - Sidebar view with treelike listing of attributes
 - Search for C# attributes within open workspace

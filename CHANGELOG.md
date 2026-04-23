@@ -11,7 +11,16 @@ All notable changes to the "MetaLens" extension will be documented in this file.
 - Search for Typescript decorators within open workspace
 - Listing Typescript decorators within open workspace
 
-## [1.0.0 - Initial Release]
+## [0.0.2]
+
+### Added
+
+- Fix report issue command
+- Fix some parameter: unknown cases
+- Fix interface method signature not shown
+- Add coding guidlines copilot-instructions.md
+
+## [0.0.1 - Initial Release]
 
 ### Added
 
