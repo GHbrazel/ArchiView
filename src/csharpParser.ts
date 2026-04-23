@@ -658,6 +658,11 @@ export class CSharpParser {
         return 'enum';
       }
 
+      // Record struct or record class declaration
+      if (line.match(/^(public\s+)?(partial\s+)?(readonly\s+)?(abstract\s+)?(sealed\s+)?record\s+(struct|class)\s+/)) {
+        return 'recordStruct';
+      }
+
       // Struct declaration
       if (line.match(/^(public\s+)?(partial\s+)?struct\s+/)) {
         return 'struct';
@@ -715,6 +720,21 @@ export class CSharpParser {
       // Pattern: type name { ... }
       if (line.match(/^\w+[\w<>\[\],\s]*\s+\w+[\w_]*\s*\{/) && !line.includes('(')) {
         return 'property';
+      }
+
+      // Property where the opening brace is on the next line
+      // Pattern: type name (without brace, just followed by end of line or whitespace)
+      if (!line.includes('(') && !line.includes('{') && !line.includes(';')) {
+        // Check if next line starts with a brace (property with brace on next line)
+        if (i + 1 < lines.length) {
+          const nextLine = lines[i + 1].trim();
+          if (nextLine.startsWith('{')) {
+            // Looks like a property with brace on next line
+            if (line.match(/^(public|private|protected|internal)?\s*[\w<>\[\],\s]+?\s+\w+[\w_]*\s*$/)) {
+              return 'property';
+            }
+          }
+        }
       }
 
       // Field - has semicolon, no getter/setter
@@ -788,6 +808,12 @@ export class CSharpParser {
         return typeMatch[4]; // Return the type name
       }
 
+      // Record struct or record class - extract the name
+      const recordMatch = line.match(/^(public |private |protected |internal )?(partial |readonly |abstract |sealed )?record\s+(struct|class)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+      if (recordMatch) {
+        return recordMatch[4]; // Return the record name
+      }
+
       // Event - extract the name (handles generic types like EventHandler<EventArgs>)
       // Pattern: event Type EventName or event Type<Generic> EventName
       const eventMatch = line.match(/event\s+[\w<>,\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[;={]/);
@@ -808,6 +834,23 @@ export class CSharpParser {
       const implicitPropMatch = line.match(/^[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\{;=]/);
       if (implicitPropMatch && !line.includes('(')) {
         return implicitPropMatch[1];
+      }
+
+      // Property where brace is on next line - extract name without requiring {
+      // Pattern: (modifier)? type name (end of line)
+      if (!line.includes('(') && !line.includes(';') && !line.includes('{')) {
+        // Check if next line starts with a brace
+        if (i + 1 < lines.length) {
+          const nextLine = lines[i + 1].trim();
+          if (nextLine.startsWith('{')) {
+            // This looks like a property with brace on next line
+            // Extract the property name (last identifier before end of line)
+            const propNameMatch = line.match(/[\w<>?,\[\]\s]+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/);
+            if (propNameMatch) {
+              return propNameMatch[1];
+            }
+          }
+        }
       }
 
       // Enum member - no access modifiers, just: Name or Name = value or Name,

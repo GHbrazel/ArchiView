@@ -1585,5 +1585,42 @@ using System.Reflection;
                         assert.strictEqual(productAttr!.line < titleAttr!.line, true, 'ProductAttribute should come before TitleAttribute');
                         assert.strictEqual(titleAttr!.line < versionAttr!.line, true, 'TitleAttribute should come before VersionAttribute');
                 });
+
+                test('should correctly identify record struct as target element', () => {
+                        const code = `[SomeAttribute(typeof(SomeX))]
+public readonly record struct Def(Guid Abc)
+{
+    public Guid Id { get; set; }
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const someAttr = attrs.find((a: any) => a.name === 'SomeAttribute');
+
+                        assert.strictEqual(someAttr !== undefined, true, 'Should find SomeAttribute');
+                        assert.strictEqual(someAttr!.targetElement, 'recordStruct', 'SomeAttribute should target recordStruct, not unknown');
+                });
+
+                test('should correctly identify property with brace on separate line', () => {
+                        const code = `[MaxLength(9)]
+[MinLength(1)]
+public string Some
+{
+    get { return "test"; }
+    init { }
+}`;
+
+                        const attrs = CSharpParser.parseAttributes(code);
+                        const maxLengthAttr = attrs.find((a: any) => a.name === 'MaxLength');
+                        const minLengthAttr = attrs.find((a: any) => a.name === 'MinLength');
+
+                        assert.strictEqual(maxLengthAttr !== undefined, true, 'Should find MaxLength');
+                        assert.strictEqual(minLengthAttr !== undefined, true, 'Should find MinLength');
+                        
+                        assert.strictEqual(maxLengthAttr!.targetElement, 'property', 'MaxLength should target property, not unknown');
+                        assert.strictEqual(minLengthAttr!.targetElement, 'property', 'MinLength should target property, not unknown');
+                        
+                        assert.strictEqual(maxLengthAttr!.targetName, 'Some', 'Property name should be Some');
+                        assert.strictEqual(minLengthAttr!.targetName, 'Some', 'Property name should be Some');
+                });
         });
 });
