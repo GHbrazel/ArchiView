@@ -19,7 +19,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const filterCommand = registerShowFilter(attributeProvider, filterManager);
 
-	context.subscriptions.push(refreshCommand, toggleCommand, filterCommand);
+	const reportIssueCommand = registerReportIssue();
+
+	context.subscriptions.push(refreshCommand, toggleCommand, filterCommand, reportIssueCommand);
 	
 	// Listen for filter changes and refresh tree
 	context.subscriptions.push(
@@ -88,6 +90,12 @@ function registerRefresh(attributeProvider: AttributeProvider) {
 	return vscode.commands.registerCommand('MetaLens.refresh', () => {
 		console.log('Refreshing attributes...');
 		attributeProvider.refresh();
+	});
+}
+
+function registerReportIssue() {
+	return vscode.commands.registerCommand('MetaLens.ReportIssue', async () => {
+		vscode.env.openExternal(vscode.Uri.parse('https://github.com/GHbrazel/ArchiView/issues/new'));
 	});
 }
 
