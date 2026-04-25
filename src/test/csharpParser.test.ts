@@ -1540,6 +1540,113 @@ namespace TestNamespace
 			assert.ok(updateStatus!.line < cancel!.line, 'UpdateOrderStatus should be before CancelOrder');
 		});
 
+		test('should extract interface methods with multiline return type - tuple with lists', () => {
+			const code = `
+namespace Test {
+	[InterfaceAttribute]
+	public interface ISomeInterface
+	{
+		Task<(List<SomeValue> kobId,
+		List<SomeX> some)> FuncName(Abc ab,
+		Def d,
+		Gof g);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'ISomeInterface');
+			
+			assert.strictEqual(signatures.length, 1, 'Should extract exactly one method signature');
+			
+			const funcName = signatures.find(s => s.signature.includes('FuncName'));
+			assert.ok(funcName !== undefined, 'Should find FuncName method');
+			assert.ok(funcName!.signature.includes('Task'), 'Should include Task in return type');
+			assert.ok(funcName!.signature.includes('('), 'Should include opening parenthesis');
+		});
+
+		test('should extract interface methods with return type on separate line', () => {
+			const code = `
+namespace Test {
+	public interface IDataService
+	{
+		Task<Dictionary<string,
+			List<Item>>> GetData(
+			int id,
+			CancellationToken ct);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IDataService');
+			
+			assert.strictEqual(signatures.length, 1, 'Should extract the method');
+			
+			const getData = signatures.find(s => s.signature.includes('GetData'));
+			assert.ok(getData !== undefined, 'Should find GetData method');
+			assert.ok(getData!.signature.includes('Task'), 'Should preserve Task in signature');
+		});
+
+		test('should extract interface methods with long generic parameter list', () => {
+			const code = `
+namespace Test {
+	public interface IProcessor
+	{
+		void Process<T1, T2, T3, T4>(
+			T1 first,
+			T2 second,
+			T3 third,
+			T4 fourth
+		) where T1 : class where T2 : IComparable;
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IProcessor');
+			
+			assert.strictEqual(signatures.length, 1, 'Should extract the generic method');
+			
+			const process = signatures[0];
+			assert.ok(process.signature.includes('Process'), 'Should include method name');
+			assert.ok(process.signature.includes('('), 'Should include parameters');
+		});
+
+		test('should extract interface methods with multiline attributes and signature', () => {
+			const code = `
+namespace Test {
+	public interface IEventHandler
+	{
+		[Obsolete("Use V2")]
+		[Async]
+		Task Handle(
+			IEvent evt,
+			CancellationToken cancellation
+		);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IEventHandler');
+			
+			assert.strictEqual(signatures.length, 1, 'Should extract the method');
+			
+			const handle = signatures.find(s => s.signature.includes('Handle'));
+			assert.ok(handle !== undefined, 'Should find Handle method');
+			assert.ok(handle!.signature.includes('Task'), 'Should include return type');
+		});
+
+		test('should extract interface methods with complex nested return type across multiple lines', () => {
+			const code = `
+namespace Test {
+	public interface IComplexService
+	{
+		Task<Result<Dictionary<string,
+			List<(int id, string name, 
+				Metadata meta)>>>> GetComplexData(
+			Request request
+		);
+	}
+}`;
+			const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IComplexService');
+			
+			assert.strictEqual(signatures.length, 1, 'Should extract method with complex nested generics');
+			
+			const getComplex = signatures[0];
+			assert.ok(getComplex.signature.includes('GetComplexData'), 'Should include method name');
+			assert.ok(getComplex.signature.includes('Task'), 'Should preserve return type');
+		});
+
                 test('should correctly assign line numbers to stacked attributes on different lines', () => {
                         const code = `
 [ApiEndpoint("/api/products/create", "POST")]

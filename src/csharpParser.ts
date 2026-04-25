@@ -1007,7 +1007,7 @@ export class CSharpParser {
       }
       
       // Exit the interface when braces close
-      if (inInterface && braceCount === 0) {
+      if (inInterface && braceCount <= 0) {
         break;
       }
       
@@ -1026,8 +1026,9 @@ export class CSharpParser {
       // Allow for: public, async, generics, arrays, nullable types
       
       // Match anything that looks like a member declaration
-      // Pattern: optional modifiers + return type + name + either () or {}
-      const memberMatch = trimmed.match(/^(public\s+)?(async\s+)?([\w<>\[\],\?\s]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[({]/);
+      // Pattern: optional modifiers + return type + name + optionally generics + either () or {}
+      // The key is method names can be followed by generics < ... > before the opening paren
+      const memberMatch = trimmed.match(/^(public\s+)?(async\s+)?([\w<>\[\],\?\s]+?)\s+([A-Za-z_][A-Za-z0-9_]*)([\w<>\[\]]*)\s*[({]/);
       
       if (memberMatch) {
         // Extract the signature, handling multiline method signatures
@@ -1101,6 +1102,109 @@ export class CSharpParser {
         // Skip the lines we just processed for multiline signatures
         if (currentLineIdx > i) {
           i = currentLineIdx;
+        }
+      } else {
+        // Try to detect multiline signatures where the method name is on a different line
+        // or where the return type has complex structure (like tuples in generics)
+        // Pattern: might look like an incomplete return type or partial signature
+        
+        // Check if line likely contains a return type or method declaration start
+        // This includes: lines with generics, lowercase return types (void, int, etc), or async keyword
+        const looksLikeReturnType = trimmed.includes('<') || 
+                                    trimmed.match(/^[a-z]+\s+/) ||  // void, int, string, etc.
+                                    trimmed.match(/^[A-Z]\w+/) ||   // Task, List, etc.
+                                    trimmed.match(/^async\s+/);
+        
+        if (looksLikeReturnType && !trimmed.includes(';') && !trimmed.includes('{') && 
+            !trimmed.includes('class') && !trimmed.includes('interface') &&
+            !trimmed.includes('enum') && !trimmed.includes('delegate')) {
+          
+          let signatureParts = [trimmed];
+          let currentLineIdx = i;
+          let foundMethodSignature = false;
+          
+          // Look ahead to find the method name and opening paren
+          while (currentLineIdx + 1 < lines.length && signatureParts.length < 20) {
+            currentLineIdx++;
+            const nextLine = lines[currentLineIdx].trim();
+            
+            // Stop if we hit another member or end of interface
+            if (nextLine.startsWith('}') || nextLine === '' && signatureParts.length > 5) {// TODO:Signature.length check is major dumb and must be replaced with something robust!
+              break;
+            }
+            
+            // Skip attributes - they indicate a new member
+            if (nextLine.startsWith('[')) {
+              break;
+            }
+            
+            // Skip comments
+            if (nextLine.startsWith('//')) {
+              continue;
+            }
+            
+            signatureParts.push(nextLine);
+            
+            // Check if this line has a method name followed by opening paren
+            // Pattern: identifier followed by ( or )> or ) followed by more content
+            if (nextLine.match(/[A-Za-z_][A-Za-z0-9_]*\s*\(/) && nextLine.includes('(')) {
+              foundMethodSignature = true;
+              
+              // Now collect until we have balanced parens
+              let parenBalance = this.countParenBalance(signatureParts.join(' '));
+              
+              while (parenBalance > 0 && currentLineIdx + 1 < lines.length) {
+                currentLineIdx++;
+                const continueLine = lines[currentLineIdx].trim();
+                if (!continueLine.startsWith('//') && continueLine !== '' && !continueLine.startsWith('}')) {
+                  signatureParts.push(continueLine);
+                  parenBalance += this.countParenBalance(continueLine);
+                } else if (continueLine === '') {
+                  // Stop on empty line if parens are balanced elsewhere
+                  break;
+                }
+              }
+              
+              break;
+            }
+          }
+          
+          if (foundMethodSignature) {
+            // Assemble the signature
+            let signature = signatureParts.join(' ').trim();
+            
+            // Find the end position (up to first ; or { after the opening paren)
+            const openParen = signature.indexOf('(');
+            if (openParen !== -1) {
+              let methodEndPos = signature.indexOf(';', openParen);
+              if (methodEndPos === -1) {
+                methodEndPos = signature.indexOf('{', openParen);
+              }
+              if (methodEndPos !== -1) {
+                signature = signature.substring(0, methodEndPos).trim();
+              } else {
+                // Try to find the closing paren
+                const closingParen = signature.lastIndexOf(')');
+                if (closingParen !== -1) {
+                  signature = signature.substring(0, closingParen + 1).trim();
+                }
+              }
+            }
+            
+            // Only add if it's a valid signature and not a duplicate
+            if (signature && !methodSignatures.some(m => m.signature === signature) && signature.length > 5 && 
+                signature.includes('(') && signature.includes(')')) {
+              methodSignatures.push({
+                signature,
+                line: i + 1
+              });
+            }
+            
+            // Skip the lines we processed
+            if (currentLineIdx > i) {
+              i = currentLineIdx;
+            }
+          }
         }
       }
     }
