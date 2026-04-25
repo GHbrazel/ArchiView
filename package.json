@@ -88,6 +88,11 @@
     "views": {
       "meta-lens": [
         {
+          "id": "meta-lens-search",
+          "type": "webview",
+          "name": "Search"
+        },
+        {
           "id": "meta-lens-sidebar",
           "icon": "$(telescope)",
           "name": "MetaLens"
@@ -118,7 +123,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "^22.19.17",
     "@types/vscode": "^1.107.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",

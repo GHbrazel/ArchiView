@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AttributeProvider } from './attributeProvider';
 import { FilterManager } from './filterManager';
+import { SearchInputProvider } from './searchInputProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	const filterManager = new FilterManager();
@@ -12,6 +13,11 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	attributeProvider.setTreeView(treeView);
+
+	const searchInputProvider = new SearchInputProvider(context, filterManager);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(SearchInputProvider.viewType, searchInputProvider)
+	);
 
 	const refreshCommand = registerRefresh(attributeProvider);
 

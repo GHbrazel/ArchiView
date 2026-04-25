@@ -251,10 +251,22 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   }
 
   private shouldShowAttribute(attributeName: string): boolean {
+    if (!this.filterManager.matchesSearchQuery(attributeName)) {
+      return false;
+    }
+
     if (!this.filterManager.hasActiveFilters()) {
       return true;
     }
-    return this.filterManager.isAttributeSelected(attributeName);
+
+    // If we have selected attributes, only show if selected
+    // (search query doesn't override selected attributes, they work together)
+    const selectedAttrs = this.filterManager.getSelectedAttributes();
+    if (selectedAttrs.size > 0) {
+      return selectedAttrs.has(attributeName);
+    }
+
+    return true;
   }
 
   private getRootNamespaceChildren(): AttributeItem[] {
