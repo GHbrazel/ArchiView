@@ -1645,8 +1645,8 @@ public interface IComplexService
 		assert.ok(getComplex.signature.includes('Task'), 'Should preserve return type');
 	});
 
-			test('should correctly assign line numbers to stacked attributes on different lines', () => {
-					const code = `
+	test('should correctly assign line numbers to stacked attributes on different lines', () => {
+		const code = `
 [ApiEndpoint("/api/products/create", "POST")]
 [Obsolete("Use CreateProductAsync instead")]
 [return: NotNull]
@@ -1654,40 +1654,40 @@ public Product CreateProduct([StringLength(100, MinimumLength = 3)] string name,
 {
 return new Product { Name = name, Price = price };
 }
-			`;
+`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					
-					// Find each attribute
-					const apiEndpointAttr = attrs.find((a: any) => a.name === 'ApiEndpoint');
-					const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
-					const notNullAttr = attrs.find((a: any) => a.name === 'NotNull');
-					const stringLengthAttr = attrs.find((a: any) => a.name === 'StringLength');
-					const rangeAttr = attrs.find((a: any) => a.name === 'Range');
+		const attrs = CSharpParser.parseAttributes(code);
+		
+		// Find each attribute
+		const apiEndpointAttr = attrs.find((a: any) => a.name === 'ApiEndpoint');
+		const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
+		const notNullAttr = attrs.find((a: any) => a.name === 'NotNull');
+		const stringLengthAttr = attrs.find((a: any) => a.name === 'StringLength');
+		const rangeAttr = attrs.find((a: any) => a.name === 'Range');
 
-					// Verify all attributes were found
-					assert.strictEqual(apiEndpointAttr !== undefined, true, 'Should find ApiEndpoint');
-					assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete');
-					assert.strictEqual(notNullAttr !== undefined, true, 'Should find NotNull');
-					assert.strictEqual(stringLengthAttr !== undefined, true, 'Should find StringLength');
-					assert.strictEqual(rangeAttr !== undefined, true, 'Should find Range');
+		// Verify all attributes were found
+		assert.strictEqual(apiEndpointAttr !== undefined, true, 'Should find ApiEndpoint');
+		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete');
+		assert.strictEqual(notNullAttr !== undefined, true, 'Should find NotNull');
+		assert.strictEqual(stringLengthAttr !== undefined, true, 'Should find StringLength');
+		assert.strictEqual(rangeAttr !== undefined, true, 'Should find Range');
 
-					// Verify line numbers are different and in correct order
-					assert.strictEqual(apiEndpointAttr!.line, 2, 'ApiEndpoint should be on line 2');
-					assert.strictEqual(obsoleteAttr!.line, 3, 'Obsolete should be on line 3');
-					assert.strictEqual(notNullAttr!.line, 4, 'NotNull should be on line 4');
-					// StringLength is on line 5 (in parameter list)
-					assert.strictEqual(stringLengthAttr!.line, 5, 'StringLength should be on line 5');
-					// Range is also on line 5 (same line as StringLength in parameters)
-					assert.strictEqual(rangeAttr!.line, 5, 'Range should be on line 5');
+		// Verify line numbers are different and in correct order
+		assert.strictEqual(apiEndpointAttr!.line, 2, 'ApiEndpoint should be on line 2');
+		assert.strictEqual(obsoleteAttr!.line, 3, 'Obsolete should be on line 3');
+		assert.strictEqual(notNullAttr!.line, 4, 'NotNull should be on line 4');
+		// StringLength is on line 5 (in parameter list)
+		assert.strictEqual(stringLengthAttr!.line, 5, 'StringLength should be on line 5');
+		// Range is also on line 5 (same line as StringLength in parameters)
+		assert.strictEqual(rangeAttr!.line, 5, 'Range should be on line 5');
 
-					// Verify they're in ascending order (except parameters which can be on same line)
-					assert.strictEqual(apiEndpointAttr!.line < obsoleteAttr!.line, true, 'ApiEndpoint should come before Obsolete');
-					assert.strictEqual(obsoleteAttr!.line < notNullAttr!.line, true, 'Obsolete should come before NotNull');
-			});
+		// Verify they're in ascending order (except parameters which can be on same line)
+		assert.strictEqual(apiEndpointAttr!.line < obsoleteAttr!.line, true, 'ApiEndpoint should come before Obsolete');
+		assert.strictEqual(obsoleteAttr!.line < notNullAttr!.line, true, 'Obsolete should come before NotNull');
+	});
 
-			test('should correctly assign line numbers to assembly attributes on separate lines', () => {
-					const code = `using System;
+	test('should correctly assign line numbers to assembly attributes on separate lines', () => {
+		const code = `using System;
 using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("AnotherExampleCsProject")]
@@ -1698,60 +1698,60 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyTitleAttribute("AnotherExampleCsProject")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					
-					// Find each assembly attribute
-					const companyAttr = attrs.find((a: any) => a.name === 'AssemblyCompanyAttribute');
-					const configAttr = attrs.find((a: any) => a.name === 'AssemblyConfigurationAttribute');
-					const fileVersionAttr = attrs.find((a: any) => a.name === 'AssemblyFileVersionAttribute');
-					const infoVersionAttr = attrs.find((a: any) => a.name === 'AssemblyInformationalVersionAttribute');
-					const productAttr = attrs.find((a: any) => a.name === 'AssemblyProductAttribute');
-					const titleAttr = attrs.find((a: any) => a.name === 'AssemblyTitleAttribute');
-					const versionAttr = attrs.find((a: any) => a.name === 'AssemblyVersionAttribute');
+		const attrs = CSharpParser.parseAttributes(code);
+		
+		// Find each assembly attribute
+		const companyAttr = attrs.find((a: any) => a.name === 'AssemblyCompanyAttribute');
+		const configAttr = attrs.find((a: any) => a.name === 'AssemblyConfigurationAttribute');
+		const fileVersionAttr = attrs.find((a: any) => a.name === 'AssemblyFileVersionAttribute');
+		const infoVersionAttr = attrs.find((a: any) => a.name === 'AssemblyInformationalVersionAttribute');
+		const productAttr = attrs.find((a: any) => a.name === 'AssemblyProductAttribute');
+		const titleAttr = attrs.find((a: any) => a.name === 'AssemblyTitleAttribute');
+		const versionAttr = attrs.find((a: any) => a.name === 'AssemblyVersionAttribute');
 
-					// Verify all attributes were found
-					assert.strictEqual(companyAttr !== undefined, true, 'Should find AssemblyCompanyAttribute');
-					assert.strictEqual(configAttr !== undefined, true, 'Should find AssemblyConfigurationAttribute');
-					assert.strictEqual(fileVersionAttr !== undefined, true, 'Should find AssemblyFileVersionAttribute');
-					assert.strictEqual(infoVersionAttr !== undefined, true, 'Should find AssemblyInformationalVersionAttribute');
-					assert.strictEqual(productAttr !== undefined, true, 'Should find AssemblyProductAttribute');
-					assert.strictEqual(titleAttr !== undefined, true, 'Should find AssemblyTitleAttribute');
-					assert.strictEqual(versionAttr !== undefined, true, 'Should find AssemblyVersionAttribute');
+		// Verify all attributes were found
+		assert.strictEqual(companyAttr !== undefined, true, 'Should find AssemblyCompanyAttribute');
+		assert.strictEqual(configAttr !== undefined, true, 'Should find AssemblyConfigurationAttribute');
+		assert.strictEqual(fileVersionAttr !== undefined, true, 'Should find AssemblyFileVersionAttribute');
+		assert.strictEqual(infoVersionAttr !== undefined, true, 'Should find AssemblyInformationalVersionAttribute');
+		assert.strictEqual(productAttr !== undefined, true, 'Should find AssemblyProductAttribute');
+		assert.strictEqual(titleAttr !== undefined, true, 'Should find AssemblyTitleAttribute');
+		assert.strictEqual(versionAttr !== undefined, true, 'Should find AssemblyVersionAttribute');
 
-					// Verify each is on the correct line (lines 4-10)
-					assert.strictEqual(companyAttr!.line, 4, 'AssemblyCompanyAttribute should be on line 4');
-					assert.strictEqual(configAttr!.line, 5, 'AssemblyConfigurationAttribute should be on line 5');
-					assert.strictEqual(fileVersionAttr!.line, 6, 'AssemblyFileVersionAttribute should be on line 6');
-					assert.strictEqual(infoVersionAttr!.line, 7, 'AssemblyInformationalVersionAttribute should be on line 7');
-					assert.strictEqual(productAttr!.line, 8, 'AssemblyProductAttribute should be on line 8');
-					assert.strictEqual(titleAttr!.line, 9, 'AssemblyTitleAttribute should be on line 9');
-					assert.strictEqual(versionAttr!.line, 10, 'AssemblyVersionAttribute should be on line 10');
+		// Verify each is on the correct line (lines 4-10)
+		assert.strictEqual(companyAttr!.line, 4, 'AssemblyCompanyAttribute should be on line 4');
+		assert.strictEqual(configAttr!.line, 5, 'AssemblyConfigurationAttribute should be on line 5');
+		assert.strictEqual(fileVersionAttr!.line, 6, 'AssemblyFileVersionAttribute should be on line 6');
+		assert.strictEqual(infoVersionAttr!.line, 7, 'AssemblyInformationalVersionAttribute should be on line 7');
+		assert.strictEqual(productAttr!.line, 8, 'AssemblyProductAttribute should be on line 8');
+		assert.strictEqual(titleAttr!.line, 9, 'AssemblyTitleAttribute should be on line 9');
+		assert.strictEqual(versionAttr!.line, 10, 'AssemblyVersionAttribute should be on line 10');
 
-					// Verify they're in ascending order
-					assert.strictEqual(companyAttr!.line < configAttr!.line, true, 'CompanyAttribute should come before ConfigurationAttribute');
-					assert.strictEqual(configAttr!.line < fileVersionAttr!.line, true, 'ConfigurationAttribute should come before FileVersionAttribute');
-					assert.strictEqual(fileVersionAttr!.line < infoVersionAttr!.line, true, 'FileVersionAttribute should come before InformationalVersionAttribute');
-					assert.strictEqual(infoVersionAttr!.line < productAttr!.line, true, 'InformationalVersionAttribute should come before ProductAttribute');
-					assert.strictEqual(productAttr!.line < titleAttr!.line, true, 'ProductAttribute should come before TitleAttribute');
-					assert.strictEqual(titleAttr!.line < versionAttr!.line, true, 'TitleAttribute should come before VersionAttribute');
-			});
+		// Verify they're in ascending order
+		assert.strictEqual(companyAttr!.line < configAttr!.line, true, 'CompanyAttribute should come before ConfigurationAttribute');
+		assert.strictEqual(configAttr!.line < fileVersionAttr!.line, true, 'ConfigurationAttribute should come before FileVersionAttribute');
+		assert.strictEqual(fileVersionAttr!.line < infoVersionAttr!.line, true, 'FileVersionAttribute should come before InformationalVersionAttribute');
+		assert.strictEqual(infoVersionAttr!.line < productAttr!.line, true, 'InformationalVersionAttribute should come before ProductAttribute');
+		assert.strictEqual(productAttr!.line < titleAttr!.line, true, 'ProductAttribute should come before TitleAttribute');
+		assert.strictEqual(titleAttr!.line < versionAttr!.line, true, 'TitleAttribute should come before VersionAttribute');
+	});
 
-			test('should correctly identify record struct as target element', () => {
-					const code = `[SomeAttribute(typeof(SomeX))]
+	test('should correctly identify record struct as target element', () => {
+		const code = `[SomeAttribute(typeof(SomeX))]
 public readonly record struct Def(Guid Abc)
 {
 public Guid Id { get; set; }
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const someAttr = attrs.find((a: any) => a.name === 'SomeAttribute');
+		const attrs = CSharpParser.parseAttributes(code);
+		const someAttr = attrs.find((a: any) => a.name === 'SomeAttribute');
 
-					assert.strictEqual(someAttr !== undefined, true, 'Should find SomeAttribute');
-					assert.strictEqual(someAttr!.targetElement, 'recordStruct', 'SomeAttribute should target recordStruct, not unknown');
-			});
+		assert.strictEqual(someAttr !== undefined, true, 'Should find SomeAttribute');
+		assert.strictEqual(someAttr!.targetElement, 'recordStruct', 'SomeAttribute should target recordStruct, not unknown');
+	});
 
-			test('should correctly identify property with brace on separate line', () => {
-					const code = `[MaxLength(9)]
+	test('should correctly identify property with brace on separate line', () => {
+		const code = `[MaxLength(9)]
 [MinLength(1)]
 public string Some
 {
@@ -1759,48 +1759,48 @@ get { return "test"; }
 init { }
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const maxLengthAttr = attrs.find((a: any) => a.name === 'MaxLength');
-					const minLengthAttr = attrs.find((a: any) => a.name === 'MinLength');
+		const attrs = CSharpParser.parseAttributes(code);
+		const maxLengthAttr = attrs.find((a: any) => a.name === 'MaxLength');
+		const minLengthAttr = attrs.find((a: any) => a.name === 'MinLength');
 
-					assert.strictEqual(maxLengthAttr !== undefined, true, 'Should find MaxLength');
-					assert.strictEqual(minLengthAttr !== undefined, true, 'Should find MinLength');
-					
-					assert.strictEqual(maxLengthAttr!.targetElement, 'property', 'MaxLength should target property, not unknown');
-					assert.strictEqual(minLengthAttr!.targetElement, 'property', 'MinLength should target property, not unknown');
-					
-					assert.strictEqual(maxLengthAttr!.targetName, 'Some', 'Property name should be Some');
-					assert.strictEqual(minLengthAttr!.targetName, 'Some', 'Property name should be Some');
-			});
+		assert.strictEqual(maxLengthAttr !== undefined, true, 'Should find MaxLength');
+		assert.strictEqual(minLengthAttr !== undefined, true, 'Should find MinLength');
+		
+		assert.strictEqual(maxLengthAttr!.targetElement, 'property', 'MaxLength should target property, not unknown');
+		assert.strictEqual(minLengthAttr!.targetElement, 'property', 'MinLength should target property, not unknown');
+		
+		assert.strictEqual(maxLengthAttr!.targetName, 'Some', 'Property name should be Some');
+		assert.strictEqual(minLengthAttr!.targetName, 'Some', 'Property name should be Some');
+	});
 
-			test('should handle complex nested braces in attribute arguments', () => {
-					const code = `[Validate(typeof(MyValidator<Dictionary<string, List<Item>>>))]
+	test('should handle complex nested braces in attribute arguments', () => {
+		const code = `[Validate(typeof(MyValidator<Dictionary<string, List<Item>>>))]
 public class ComplexType
 {
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const valAttr = attrs.find((a: any) => a.name === 'Validate');
+		const attrs = CSharpParser.parseAttributes(code);
+		const valAttr = attrs.find((a: any) => a.name === 'Validate');
 
-					assert.strictEqual(valAttr !== undefined, true, 'Should find Validate attribute with nested generics');
-					assert.strictEqual(valAttr!.targetElement, 'class', 'Should correctly identify class as target');
-			});
+		assert.strictEqual(valAttr !== undefined, true, 'Should find Validate attribute with nested generics');
+		assert.strictEqual(valAttr!.targetElement, 'class', 'Should correctly identify class as target');
+	});
 
-			test('should handle attributes on abstract sealed combined modifier class', () => {
-					const code = `[Sealed]
+	test('should handle attributes on abstract sealed combined modifier class', () => {
+		const code = `[Sealed]
 public abstract sealed class StrangeClass
 {
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const sealedAttr = attrs.find((a: any) => a.name === 'Sealed');
+		const attrs = CSharpParser.parseAttributes(code);
+		const sealedAttr = attrs.find((a: any) => a.name === 'Sealed');
 
-					assert.strictEqual(sealedAttr !== undefined, true, 'Should find attribute on abstract sealed class');
-					assert.strictEqual(sealedAttr!.targetElement, 'class', 'Should identify as class');
-			});
+		assert.strictEqual(sealedAttr !== undefined, true, 'Should find attribute on abstract sealed class');
+		assert.strictEqual(sealedAttr!.targetElement, 'class', 'Should identify as class');
+	});
 
-			test('should handle attributes on deeply nested multiline method signatures', () => {
-					const code = `[Obsolete]
+	test('should handle attributes on deeply nested multiline method signatures', () => {
+		const code = `[Obsolete]
 public async Task<Result<Dictionary<string, 
 List<Item>>>> ProcessAsync(
 string param1,
@@ -1811,69 +1811,69 @@ Func<string, Task<bool>> validator = null
 return null;
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+		const attrs = CSharpParser.parseAttributes(code);
+		const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
 
-					assert.strictEqual(obsAttr !== undefined, true, 'Should find attribute on complex multiline method');
-					assert.strictEqual(obsAttr!.targetElement, 'method', 'Should identify as method');
-			});
+		assert.strictEqual(obsAttr !== undefined, true, 'Should find attribute on complex multiline method');
+		assert.strictEqual(obsAttr!.targetElement, 'method', 'Should identify as method');
+	});
 
-			test('should handle attributes on property with complex type and nested braces in initializer', () => {
-					const code = `[Required]
+	test('should handle attributes on property with complex type and nested braces in initializer', () => {
+		const code = `[Required]
 public Dictionary<string, List<int>> Data 
 { 
 get { return new Dictionary<string, List<int>> { { "key", new List<int> { 1, 2, 3 } } }; }
 set { }
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const reqAttr = attrs.find((a: any) => a.name === 'Required');
+		const attrs = CSharpParser.parseAttributes(code);
+		const reqAttr = attrs.find((a: any) => a.name === 'Required');
 
-					assert.strictEqual(reqAttr !== undefined, true, 'Should find attribute on property with complex type');
-					assert.strictEqual(reqAttr!.targetElement, 'property', 'Should identify as property');
-			});
+		assert.strictEqual(reqAttr !== undefined, true, 'Should find attribute on property with complex type');
+		assert.strictEqual(reqAttr!.targetElement, 'property', 'Should identify as property');
+	});
 
-			test('should handle indexer with attribute', () => {
-					const code = `[Obsolete]
+	test('should handle indexer with attribute', () => {
+		const code = `[Obsolete]
 public string this[int index] 
 {
 get { return _items[index]; }
 set { _items[index] = value; }
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
-					
-					assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute on indexer');
-					assert.notStrictEqual(obsAttr!.targetElement, 'unknown', 'Indexer target should not be unknown');
-			});
+		const attrs = CSharpParser.parseAttributes(code);
+		const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
+		
+		assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute on indexer');
+		assert.notStrictEqual(obsAttr!.targetElement, 'unknown', 'Indexer target should not be unknown');
+	});
 
-			test('should correctly parse attributes with complex nested generics', () => {
-					const code = `[ValidationType(typeof(Dictionary<string, List<Item>>))]
+	test('should correctly parse attributes with complex nested generics', () => {
+		const code = `[ValidationType(typeof(Dictionary<string, List<Item>>))]
 public class OrderProcessor
 {
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const valAttr = attrs.find((a: any) => a.name === 'ValidationType');
+		const attrs = CSharpParser.parseAttributes(code);
+		const valAttr = attrs.find((a: any) => a.name === 'ValidationType');
 
-					assert.strictEqual(valAttr !== undefined, true, 'Should find ValidationType attribute');
-					assert.strictEqual(valAttr!.targetElement, 'class', 'Should identify class target');
-			});
+		assert.strictEqual(valAttr !== undefined, true, 'Should find ValidationType attribute');
+		assert.strictEqual(valAttr!.targetElement, 'class', 'Should identify class target');
+	});
 
-			test('should correctly identify readonly struct', () => {
-					const code = `[Serializable]
+	test('should correctly identify readonly struct', () => {
+		const code = `[Serializable]
 public readonly struct Point
 {
 public int X { get; }
 public int Y { get; }
 }`;
 
-					const attrs = CSharpParser.parseAttributes(code);
-					const serAttr = attrs.find((a: any) => a.name === 'Serializable');
+		const attrs = CSharpParser.parseAttributes(code);
+		const serAttr = attrs.find((a: any) => a.name === 'Serializable');
 
-					assert.strictEqual(serAttr !== undefined, true, 'Should find Serializable attribute');
-					assert.strictEqual(serAttr!.targetElement, 'struct', 'Should identify readonly struct as struct');
-					assert.strictEqual(serAttr!.targetName, 'Point', 'Struct name should be Point');
-			});
+		assert.strictEqual(serAttr !== undefined, true, 'Should find Serializable attribute');
+		assert.strictEqual(serAttr!.targetElement, 'struct', 'Should identify readonly struct as struct');
+		assert.strictEqual(serAttr!.targetName, 'Point', 'Struct name should be Point');
+	});
 });
