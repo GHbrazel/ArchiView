@@ -93,6 +93,8 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
             font-size: 13px;
             font-family: inherit;
             outline: none;
+            width: 100%;
+            max-width: 250px;
         }
 
         .search-input:focus {
@@ -127,8 +129,8 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-descriptionForeground);
             margin-top: 6px;
         }
-        .mb-4 {
-            margin-bottom: 16px;
+        .mb-3 {
+            margin-bottom: 12px;
         }
     </style>
 </head>
@@ -143,7 +145,7 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
         />
         <button class="clear-btn" id="clearBtn" title="Clear">✕</button>
     </div>
-    <div class="tip mb-4">Type without brackets!</div>
+    <div class="tip mb-3">Type without brackets!</div>
     <div class="tip">Example:</div>
     <div class="tip">"Serializable" instead of "[Serializable]"</div>
 
