@@ -127,6 +127,9 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-descriptionForeground);
             margin-top: 6px;
         }
+        .mb-4 {
+            margin-bottom: 16px;
+        }
     </style>
 </head>
 <body>
@@ -140,7 +143,9 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
         />
         <button class="clear-btn" id="clearBtn" title="Clear">✕</button>
     </div>
-    <div class="tip">Type without brackets: "Serializable" instead of "[Serializable]"</div>
+    <div class="tip mb-4">Type without brackets!</div>
+    <div class="tip">Example:</div>
+    <div class="tip">"Serializable" instead of "[Serializable]"</div>
 
     <script>
         const vscode = acquireVsCodeApi();
