@@ -11,7 +11,14 @@ All notable changes to the "MetaLens" extension will be documented in this file.
 - Search for Typescript decorators within open workspace
 - Listing Typescript decorators within open workspace
 
-## [0.0.2]
+## [0.0.6]
+
+### Added
+
+- Add quicksearch panel that auto updates the annotation treepanel
+- Fix further interface method signature not shown
+
+## [0.0.5]
 
 ### Added
 

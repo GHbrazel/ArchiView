@@ -15,7 +15,12 @@ MetaLens helps you understand and navigate annotation-driven codebases by scanni
 
 ## Release Notes
 
-### 0.0.2
+### 0.0.6
+
+- Add quicksearch panel that auto updates the annotation treepanel
+- Fix further interface method signature not shown
+
+### 0.0.5
 
 - Fix report issue command
 - Fix some parameter: unknown cases
