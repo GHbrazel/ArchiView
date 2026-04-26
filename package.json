@@ -88,6 +88,7 @@
     "views": {
       "meta-lens": [
         {
+          "icon": "$(search)",
           "id": "meta-lens-search",
           "type": "webview",
           "name": "Search"
@@ -122,6 +123,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.17",
     "@types/vscode": "^1.107.0",
