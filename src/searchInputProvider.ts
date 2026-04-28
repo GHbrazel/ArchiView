@@ -43,6 +43,12 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
           clearTimeout(this.searchInputDebounceTimer);
         }
         this.filterManager.setSearchQuery('');
+      } else if (message.command === 'getSearchQuery') {
+        const currentQuery = this.filterManager.getSearchQuery();
+        webviewView.webview.postMessage({
+          command: 'updateSearch',
+          query: currentQuery
+        });
       }
     });
 
@@ -183,6 +189,10 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
             if (msg.command === 'updateSearch') {
                 input.value = msg.query;
             }
+        });
+
+        window.addEventListener('load', () => {
+            vscode.postMessage({ command: 'getSearchQuery' });
         });
 
         input.focus();
