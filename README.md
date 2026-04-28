@@ -2,6 +2,8 @@
 
 MetaLens helps you understand and navigate annotation-driven codebases by scanning and surfacing metadata of C# attributes.
 
+![animated sneak peak of MetaLens extension](media/extensionPeak.gif)
+
 ## Features
 
 - Scan C# attributes
