@@ -31,8 +31,11 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	// Listen for filter changes and refresh tree
 	context.subscriptions.push(
-		filterManager.onFilterChanged(() => {
-			attributeProvider.refresh();
+		filterManager.onFilterChanged((change) => {
+			if (change.version > attributeProvider.getLastFilterVersion()) {
+				attributeProvider.setLastFilterVersion(change.version);
+				attributeProvider.refresh();
+			}
 		})
 	);
 }

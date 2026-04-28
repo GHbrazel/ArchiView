@@ -105,8 +105,8 @@ suite('FilterManager Tests', () => {
 	test('should emit change event with current filter state', (done) => {
 		let lastEmittedState: Set<string> = new Set();
 		
-		filterManager.onFilterChanged((state) => {
-			lastEmittedState = state;
+		filterManager.onFilterChanged((change) => {
+			lastEmittedState = change.attributes;
 		});
 
 		filterManager.addAttributeToFilter('Required');

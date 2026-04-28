@@ -4,7 +4,7 @@ export class FilterManager {
   private selectedAttributes: Set<string> = new Set();
   private searchQuery: string = '';
   private lamportClockVersion: number = 0;
-  private _onFilterChanged = new vscode.EventEmitter<Set<string>>();
+  private _onFilterChanged = new vscode.EventEmitter<{attributes: Set<string>, version: number}>();
   onFilterChanged = this._onFilterChanged.event;
 
   constructor() {
@@ -14,7 +14,7 @@ export class FilterManager {
   setSelectedAttributes(attributes: string[]): void {
     this.selectedAttributes = new Set(attributes);
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   toggleAttributeInFilter(attribute: string): void {
@@ -24,32 +24,32 @@ export class FilterManager {
       this.selectedAttributes.add(attribute);
     }
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   addAttributeToFilter(attribute: string): void {
     this.selectedAttributes.add(attribute);
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   removeAttributeFromFilter(attribute: string): void {
     this.selectedAttributes.delete(attribute);
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   clearAllFilters(): void {
     this.selectedAttributes.clear();
     this.searchQuery = '';
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   setSearchQuery(query: string): void {
     this.searchQuery = query.trim().toLowerCase();
     this.incrementLamportClock();
-    this._onFilterChanged.fire(new Set(this.selectedAttributes));
+    this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
   getSearchQuery(): string {

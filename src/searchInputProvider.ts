@@ -7,7 +7,6 @@ import { FilterManager } from './filterManager';
 export class SearchInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'meta-lens-search';
   private webviewView?: vscode.WebviewView;
-  private searchInputDebounceTimer: NodeJS.Timeout | undefined;
   
   constructor(
     private context: vscode.ExtensionContext,
@@ -31,17 +30,9 @@ export class SearchInputProvider implements vscode.WebviewViewProvider {
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage((message) => {
       if (message.command === 'search') {
-        if (this.searchInputDebounceTimer) {
-          clearTimeout(this.searchInputDebounceTimer);
-        }
-        this.searchInputDebounceTimer = setTimeout(() => {
-          const query = message.query as string;
-          this.filterManager.setSearchQuery(query);
-        }, 150);
+        const query = message.query as string;
+        this.filterManager.setSearchQuery(query);
       } else if (message.command === 'clearSearch') {
-        if (this.searchInputDebounceTimer) {
-          clearTimeout(this.searchInputDebounceTimer);
-        }
         this.filterManager.setSearchQuery('');
       } else if (message.command === 'getSearchQuery') {
         const currentQuery = this.filterManager.getSearchQuery();

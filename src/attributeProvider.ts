@@ -48,6 +48,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private treeItemBuilder: TreeItemBuilder;
   private filterManager: FilterManager;
   private treeView: vscode.TreeView<AttributeItem> | undefined;
+  private lastFilterVersion: number = 0;
 
   constructor(filterManager?: FilterManager) {
     this.filterManager = filterManager || new FilterManager();
@@ -427,5 +428,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       const tooltip = this.treeItemBuilder.buildAttributeTooltip(location.attribute);
       return this.treeItemBuilder.buildAttributeOccurrenceItem(element.file!, location.attribute, tooltip);
     });
+  }
+
+  getLastFilterVersion(): number {
+    return this.lastFilterVersion;
+  }
+
+  setLastFilterVersion(version: number): void {
+    this.lastFilterVersion = version;
   }
 }
