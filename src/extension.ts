@@ -2,11 +2,15 @@ import * as vscode from 'vscode';
 import { AttributeProvider } from './attributeProvider';
 import { FilterManager } from './filterManager';
 import { SearchInputProvider } from './searchInputProvider';
+import { CacheManager } from './cacheManager';
 
 export function activate(context: vscode.ExtensionContext) {
 	const filterManager = new FilterManager();
 
-	const attributeProvider = new AttributeProvider(filterManager);
+	// Initialize cache manager with extension storage path
+	const cacheManager = new CacheManager(context.globalStorageUri.fsPath);
+
+	const attributeProvider = new AttributeProvider(filterManager, cacheManager);
 	const treeView = vscode.window.createTreeView('meta-lens-sidebar', {
 		treeDataProvider: attributeProvider,
 		showCollapseAll: true

@@ -7,6 +7,7 @@ import { ExpansionManager } from './expansionManager';
 import { AttributeRepository, AttributeLocation } from './attributeRepository';
 import { SettingsManager } from './settingsManager';
 import { TreeItemBuilder } from './treeItemBuilder';
+import { CacheManager } from './cacheManager';
 
 /**
  * Represents a node in the attribute tree view
@@ -47,11 +48,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private settingsManager: SettingsManager;
   private treeItemBuilder: TreeItemBuilder;
   private filterManager: FilterManager;
+  private cacheManager: CacheManager | undefined;
   private treeView: vscode.TreeView<AttributeItem> | undefined;
   private lastFilterVersion: number = 0;
 
-  constructor(filterManager?: FilterManager) {
+  constructor(filterManager?: FilterManager, cacheManager?: CacheManager) {
     this.filterManager = filterManager || new FilterManager();
+    this.cacheManager = cacheManager;
     this.repository = new AttributeRepository();
     this.expansionManager = new ExpansionManager();
     this.settingsManager = new SettingsManager();
@@ -154,7 +157,25 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   async refresh(): Promise<void> {
     console.log('Refreshing C# attributes...');
     this.repository.clearAllData();
+
+    // Try to load from cache first
+    if (this.cacheManager) {
+      const cacheLoaded = await this.cacheManager.loadCache(this.repository);
+      if (cacheLoaded) {
+        console.log('Using cached attributes');
+        this._onDidChangeTreeData.fire(undefined);
+        return;
+      }
+    }
+
+    // Cache not available or failed, parse from files
     await this.findAttributesInWorkspace();
+    
+    // Save to cache for next time
+    if (this.cacheManager) {
+      await this.cacheManager.saveCache(this.repository);
+    }
+
     this._onDidChangeTreeData.fire(undefined);
   }
 
@@ -164,13 +185,29 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private setupFileWatchers(): void {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.cs');
     
-    watcher.onDidCreate(() => this.refresh());
+    watcher.onDidCreate(() => {
+      // Invalidate cache when files are created
+      if (this.cacheManager) {
+        this.cacheManager.invalidateCache();
+      }
+      this.refresh();
+    });
     
-    watcher.onDidDelete(() => this.refresh());
+    watcher.onDidDelete(() => {
+      // Invalidate cache when files are deleted
+      if (this.cacheManager) {
+        this.cacheManager.invalidateCache();
+      }
+      this.refresh();
+    });
     
     // Incremental update on changes (preserves expansion)
     watcher.onDidChange((uri) => {
       this.parseFileAndUpdateTree(uri);
+      // Save cache after file change
+      if (this.cacheManager) {
+        this.cacheManager.saveCache(this.repository);
+      }
     });
   }
 
