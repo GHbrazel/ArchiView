@@ -346,10 +346,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       fileMap.get(location.file)!.push(location);
     }
 
-    // Return file nodes
-    return Array.from(fileMap.keys())
-      .sort()
+    var fileNodes = Array.from(fileMap.keys())
       .map((file) => this.treeItemBuilder.buildFileItem(file, attributeName));
+
+    // Sort by file name (use the displayed label which is the basename)
+    fileNodes.sort((a, b) => a.label!.localeCompare(b.label!));
+
+    return fileNodes;
   }
 
   private getHierarchyModeFileChildren(element: AttributeItem): AttributeItem[] {
@@ -370,10 +373,13 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       }
     }
 
-    // Return file nodes
-    return Array.from(fileMap.keys())
-      .sort()
+    var fileNodes = Array.from(fileMap.keys())
       .map((file) => this.treeItemBuilder.buildFileItem(file, attributeName));
+
+    // Sort by file name (use the displayed label which is the basename)
+    fileNodes.sort((a, b) => a.label!.localeCompare(b.label!));
+
+    return fileNodes;
   }
 
   /**

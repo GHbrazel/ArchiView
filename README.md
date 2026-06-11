@@ -17,6 +17,10 @@ MetaLens helps you understand and navigate annotation-driven codebases by scanni
 
 ## Release Notes
 
+### 0.0.8
+
+- Sort the uncategorized list of attributes
+
 ### 0.0.7
 
 - Add extension sneak peak gif

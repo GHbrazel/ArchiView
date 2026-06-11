@@ -974,6 +974,60 @@ suite('AttributeProvider Tree Expansion Tests', () => {
         });
 });
 
+suite('AttributeProvider Attribute File sorting tests', () => {
+	test('should sort files alphabetically under attribute - flat mode', () => {
+		const provider = new (require('../attributeProvider').AttributeProvider)(FilterManager);
+		
+		// Set flat mode
+		const settingsMgr = provider.getSettingsManager();
+		settingsMgr.setNamespaceHierarchyEnabled(false);
+		const repo = provider.getRepository();
+		
+		// Setup: Key attribute in 3 files
+		repo.setAttributeLocations('Key', [
+			{ file: '/test/Zeta.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
+			{ file: '/test/Alpha.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
+			{ file: '/test/Middle.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+		]);
+		
+		const rootChildren = provider.getChildren();
+		const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+		const fileChildren = provider.getChildren(keyNode);
+		
+		assert.strictEqual(fileChildren.length, 3, 'Should have 3 files');
+		assert.strictEqual(fileChildren[0].file, '/test/Alpha.cs', 'First file should be Alpha.cs');
+		assert.strictEqual(fileChildren[1].file, '/test/Middle.cs', 'Second file should be Middle.cs');
+		assert.strictEqual(fileChildren[2].file, '/test/Zeta.cs', 'Third file should be Zeta.cs');
+	});
+
+	test('should sort files alphabetically under attribute - hierarchy mode', () => {
+		const provider = new (require('../attributeProvider').AttributeProvider)(FilterManager);
+		
+		// Set hierarchy mode
+		const settingsMgr = provider.getSettingsManager();
+		settingsMgr.setNamespaceHierarchyEnabled(true);
+		const repo = provider.getRepository();
+		
+		// Setup: Key attribute in 3 files under same namespace
+		repo.setAttributeLocations('Key', [
+			{ file: '/test/Zeta.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' },
+			{ file: '/test/Alpha.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' },
+			{ file: '/test/Middle.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' }
+		]);
+		
+		const rootChildren = provider.getChildren();
+		const modelsNode = rootChildren.find((n: any) => n.context === 'namespace|MyProject');
+		const attributeChildren = provider.getChildren(modelsNode).filter((n: any) => n.context?.startsWith('attribute|Key'));
+		const keyNode = attributeChildren[0];
+		const fileChildren = provider.getChildren(keyNode);
+		
+		assert.strictEqual(fileChildren.length, 3, 'Should have 3 files');
+		assert.strictEqual(fileChildren[0].file, '/test/Alpha.cs', 'First file should be Alpha.cs');
+		assert.strictEqual(fileChildren[1].file, '/test/Middle.cs', 'Second file should be Middle.cs');
+		assert.strictEqual(fileChildren[2].file, '/test/Zeta.cs', 'Third file should be Zeta.cs');
+	});
+});
+
 suite('CSharpParser Multi-Line Attribute Tests', () => {
 	test('should parse multiple stacked attributes on enum', () => {
 		const { CSharpParser } = require('../csharpParser');
