@@ -4,6 +4,8 @@ export class FilterManager {
   private selectedAttributes: Set<string> = new Set();
   private searchQuery: string = '';
   private lamportClockVersion: number = 0;
+  private lastSearchChangeTime: number | null = null;
+  private searchChangeIntervalMs: number = 500; // configurable interval
   private _onFilterChanged = new vscode.EventEmitter<{attributes: Set<string>, version: number}>();
   onFilterChanged = this._onFilterChanged.event;
 
@@ -47,8 +49,19 @@ export class FilterManager {
   }
 
   setSearchQuery(query: string): void {
-    this.searchQuery = query.trim().toLowerCase();
-    this.incrementLamportClock();
+    const cleaned = query.trim().toLowerCase();
+    if (cleaned === this.searchQuery) {
+      return;
+    }
+
+    const now = Date.now();
+    // If the previous change was recent (within interval), treat this as a new clock tick
+    if (this.lastSearchChangeTime && (now - this.lastSearchChangeTime) <= this.searchChangeIntervalMs) {
+      this.incrementLamportClock();
+    }
+
+    this.searchQuery = cleaned;
+    this.lastSearchChangeTime = now;
     this._onFilterChanged.fire({attributes: new Set(this.selectedAttributes), version: this.lamportClockVersion});
   }
 
