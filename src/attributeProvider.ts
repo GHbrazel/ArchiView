@@ -155,14 +155,14 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
    * Refresh all attributes in the workspace
    */
   async refresh(): Promise<void> {
-    console.log('Refreshing C# attributes...');
+    console.debug('Refreshing C# attributes...');
     this.repository.clearAllData();
 
     // Try to load from cache first
     if (this.cacheManager) {
       const cacheLoaded = await this.cacheManager.loadCache(this.repository);
       if (cacheLoaded) {
-        console.log('Using cached attributes');
+        console.debug('Using cached attributes');
         this._onDidChangeTreeData.fire(undefined);
         return;
       }
@@ -225,7 +225,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
   private async findAttributesInWorkspace(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      console.log('No workspace folders found');
+      console.debug('No workspace folders found');
       return;
     }
 
@@ -236,7 +236,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
           '**/bin/**'
         );
 
-        console.log(`Found ${files.length} C# files in ${folder.name}`);
+        console.debug(`Found ${files.length} C# files in ${folder.name}`);
 
         for (const file of files) {
           this.parseFile(file);
@@ -274,7 +274,7 @@ export class AttributeProvider implements vscode.TreeDataProvider<AttributeItem>
       }
 
       const fileCount = attributes.length;
-      console.log(`${fileCount > 0 ? 'Found' : 'No'} ${fileCount} attribute${fileCount !== 1 ? 's' : ''} in ${path.basename(filePath)}`);
+      console.debug(`${fileCount > 0 ? 'Found' : 'No'} ${fileCount} attribute${fileCount !== 1 ? 's' : ''} in ${path.basename(filePath)}`);
     } catch (error) {
       console.error(`Error parsing ${uri.fsPath}:`, error);
     }
