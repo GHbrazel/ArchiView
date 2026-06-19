@@ -1,7 +1,7 @@
-import * as assert from 'assert';
+import { describe, test, expect } from 'vitest';
 import { CSharpParser } from '../csharpParser';
 
-suite('Real Attributes Detection', () => {
+describe('Real Attributes Detection', () => {
 	test('should detect simple attributes on classes', () => {
 		const code = `
 namespace TestNamespace
@@ -12,9 +12,9 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Serializable');
-		assert.strictEqual(attributes[0].targetElement, 'class');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Serializable');
+		expect(attributes[0].targetElement).toBe('class');
 	});
 
 	test('should detect multiple attributes on a class', () => {
@@ -29,11 +29,11 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 3);
+		expect(attributes.length).toBe(3);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Serializable'), 'Should include Serializable');
-		assert.ok(names.includes('Required'), 'Should include Required');
-		assert.ok(names.includes('Obsolete'), 'Should include Obsolete');
+		expect(names).toContain('Serializable');
+		expect(names).toContain('Required');
+		expect(names).toContain('Obsolete');
 	});
 
 	test('should extract target names for all stacked attributes on same element', () => {
@@ -47,14 +47,14 @@ public class User
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const serializableAttr = attributes.find(a => a.name === 'Serializable');
 		const tableAttr = attributes.find(a => a.name === 'Table');
 		
-		assert.ok(serializableAttr, 'Should find Serializable attribute');
-		assert.ok(tableAttr, 'Should find Table attribute');
-		assert.strictEqual(serializableAttr?.targetName, 'User', 'Serializable should have targetName "User"');
-		assert.strictEqual(tableAttr?.targetName, 'User', 'Table should have targetName "User"');
+		expect(serializableAttr).toBeTruthy();
+		expect(tableAttr).toBeTruthy();
+		expect(serializableAttr?.targetName).toBe('User');
+		expect(tableAttr?.targetName).toBe('User');
 	});
 
 	test('should detect attributes on properties', () => {
@@ -69,8 +69,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
-		assert.ok(attributes.every(a => a.targetElement === 'property'), 'All attributes should target properties');
+		expect(attributes.length).toBe(2);
+		expect(attributes.every(a => a.targetElement === 'property')).toBe(true);
 	});
 
 	test('should detect attributes on methods', () => {
@@ -86,9 +86,9 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Obsolete');
-		assert.strictEqual(attributes[0].targetElement, 'method');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Obsolete');
+		expect(attributes[0].targetElement).toBe('method');
 	});
 
 	test('should extract attribute parameters', () => {
@@ -101,9 +101,9 @@ public class UserController
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'ApiEndpoint');
-		assert.strictEqual(attributes[0].arguments, '"/api/users", "POST"');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('ApiEndpoint');
+		expect(attributes[0].arguments).toBe('"/api/users", "POST"');
 	});
 
 	test('should extract complex attribute arguments', () => {
@@ -114,13 +114,13 @@ namespace TestNamespace
 public string Name { get; set; }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.ok(attributes[0].arguments?.includes('255'), 'Arguments should include 255');
-		assert.ok(attributes[0].arguments?.includes('MinimumLength'), 'Arguments should include MinimumLength');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].arguments).toContain('255');
+		expect(attributes[0].arguments).toContain('MinimumLength');
 	});
 });
 
-suite('False Positives - Array Indexing', () => {
+describe('False Positives - Array Indexing', () => {
 	test('should NOT detect array access as attribute', () => {
 		const code = `
 namespace TestNamespace
@@ -135,7 +135,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Array indexing should not be detected as attributes');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect string character access as attribute', () => {
@@ -152,7 +152,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'String indexing should not be detected as attributes');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect multi-dimensional array access as attribute', () => {
@@ -169,7 +169,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Multi-dimensional array indexing should not be detected');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect List access as attribute', () => {
@@ -186,7 +186,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'List indexing should not be detected as attributes');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect Dictionary access as attribute', () => {
@@ -203,7 +203,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Dictionary access should not be detected as attributes');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect array with variable index as attribute', () => {
@@ -221,7 +221,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Array access with variable should not be detected');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should NOT detect array with expression as attribute', () => {
@@ -238,11 +238,11 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Array access with expression should not be detected');
+		expect(attributes.length).toBe(0);
 	});
 });
 
-suite('Mixed Real Attributes and False Positives', () => {
+describe('Mixed Real Attributes and False Positives', () => {
 	test('should detect only real attributes while ignoring array indexing', () => {
 		const code = `
 namespace TestNamespace
@@ -267,15 +267,15 @@ public class Product
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 5, 'Should only detect 5 real attributes');
+		expect(attributes.length).toBe(5);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Serializable'), 'Should include Serializable');
-		assert.ok(names.includes('Repository'), 'Should include Repository');
-		assert.ok(names.includes('Key'), 'Should include Key');
-		assert.ok(names.includes('Required'), 'Should include Required');
-		assert.ok(names.includes('StringLength'), 'Should include StringLength');
-		assert.ok(!names.includes('0'), 'Should not include 0 as attribute');
-		assert.ok(!names.includes('1'), 'Should not include 1 as attribute');
+		expect(names).toContain('Serializable');
+		expect(names).toContain('Repository');
+		expect(names).toContain('Key');
+		expect(names).toContain('Required');
+		expect(names).toContain('StringLength');
+		expect(names).not.toContain('0');
+		expect(names).not.toContain('1');
 	});
 
 	test('should handle complex code with methods containing array access', () => {
@@ -308,16 +308,16 @@ public class UserController
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 5, 'Should detect 5 attributes only');
+		expect(attributes.length).toBe(5);
 		const attributeNames = attributes.map(a => a.name);
-		assert.ok(attributeNames.includes('Authorize'), 'Should include Authorize');
-		assert.ok(attributeNames.includes('Cacheable'), 'Should include Cacheable');
-		assert.ok(attributeNames.includes('Loggable'), 'Should include Loggable');
-		assert.ok(attributeNames.includes('Obsolete'), 'Should include Obsolete');
+		expect(attributeNames).toContain('Authorize');
+		expect(attributeNames).toContain('Cacheable');
+		expect(attributeNames).toContain('Loggable');
+		expect(attributeNames).toContain('Obsolete');
 	});
 });
 
-suite('Namespace Extraction', () => {
+describe('Namespace Extraction', () => {
 	test('should extract namespace from class', () => {
 		const code = `
 namespace CsAttributeExampleProject.Models
@@ -328,7 +328,7 @@ public class Product
 }
 }`;
 		const namespace = CSharpParser.extractNamespace(code);
-		assert.strictEqual(namespace, 'CsAttributeExampleProject.Models');
+		expect(namespace).toBe('CsAttributeExampleProject.Models');
 	});
 
 	test('should extract nested namespace', () => {
@@ -341,7 +341,7 @@ public class Entity
 }
 }`;
 		const namespace = CSharpParser.extractNamespace(code);
-		assert.strictEqual(namespace, 'Company.Project.SubNamespace.Models');
+		expect(namespace).toBe('Company.Project.SubNamespace.Models');
 	});
 
 	test('should handle missing namespace', () => {
@@ -351,11 +351,11 @@ public class TestClass
 {
 }`;
 		const namespace = CSharpParser.extractNamespace(code);
-		assert.strictEqual(namespace, '');
+		expect(namespace).toBe('');
 	});
 });
 
-suite('Edge Cases', () => {
+describe('Edge Cases', () => {
 	test('should handle attributes with nested brackets', () => {
 		const code = `
 namespace TestNamespace
@@ -366,7 +366,7 @@ public class GenericTest
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.ok(attributes.length > 0, 'Should detect at least one attribute');
+		expect(attributes.length).toBeGreaterThan(0);
 	});
 
 	test('should not confuse generic type parameters with attributes', () => {
@@ -380,7 +380,7 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Generic type parameters should not be detected as attributes');
+		expect(attributes.length).toBe(0);
 	});
 
 	test('should handle attributes with line breaks', () => {
@@ -396,8 +396,8 @@ public class UserController
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'ApiEndpoint');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('ApiEndpoint');
 	});
 
 	test('should handle array in attribute arguments vs array access', () => {
@@ -415,12 +415,12 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'ArrayAttribute');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('ArrayAttribute');
 	});
 });
 
-suite('Line Number Tracking', () => {
+describe('Line Number Tracking', () => {
 	test('should track line numbers for attributes', () => {
 		const code = `namespace Test
 {
@@ -432,13 +432,13 @@ public class Class1
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
-		assert.ok(attributes[0].line >= 2, 'First attribute line should be >= 2');
-		assert.ok(attributes[1].line >= 5, 'Second attribute line should be >= 5');
+		expect(attributes.length).toBe(2);
+		expect(attributes[0].line).toBeGreaterThanOrEqual(2);
+		expect(attributes[1].line).toBeGreaterThanOrEqual(5);
 	});
 });
 
-suite('Parameter Attributes', () => {
+describe('Parameter Attributes', () => {
 	test('should detect simple parameter attributes', () => {
 		const code = `
 namespace TestNamespace
@@ -451,11 +451,11 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'NotNull');
-		assert.strictEqual(attributes[0].targetElement, 'parameter');
-		assert.strictEqual(attributes[0].parameterType, 'object');
-		assert.strictEqual(attributes[0].parameterName, 'value');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('NotNull');
+		expect(attributes[0].targetElement).toBe('parameter');
+		expect(attributes[0].parameterType).toBe('object');
+		expect(attributes[0].parameterName).toBe('value');
 	});
 
 	test('should detect multiple parameter attributes on same method', () => {
@@ -470,14 +470,14 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const notNullAttr = attributes.find(a => a.name === 'NotNull');
 		const optionalAttr = attributes.find(a => a.name === 'Optional');
 		
-		assert.ok(notNullAttr, 'Should detect NotNull attribute');
-		assert.ok(optionalAttr, 'Should detect Optional attribute');
-		assert.strictEqual(notNullAttr?.parameterName, 'message');
-		assert.strictEqual(optionalAttr?.parameterName, 'timeout');
+		expect(notNullAttr).toBeTruthy();
+		expect(optionalAttr).toBeTruthy();
+		expect(notNullAttr?.parameterName).toBe('message');
+		expect(optionalAttr?.parameterName).toBe('timeout');
 	});
 
 	test('should detect parameter attributes with arguments', () => {
@@ -492,12 +492,12 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		
 		const rangeAttr = attributes.find(a => a.name === 'Range');
-		assert.ok(rangeAttr, 'Should detect Range attribute');
-		assert.ok(rangeAttr?.arguments.includes('1'), 'Range should have argument 1');
-		assert.ok(rangeAttr?.arguments.includes('100'), 'Range should have argument 100');
+		expect(rangeAttr).toBeTruthy();
+		expect(rangeAttr?.arguments.includes('1')).toBe(true);
+		expect(rangeAttr?.arguments.includes('100')).toBe(true);
 	});
 
 	test('should detect parameter attributes with custom types', () => {
@@ -512,15 +512,15 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		
 		const queryAttr = attributes.find(a => a.name === 'FromQuery');
 		const notNullAttr = attributes.find(a => a.name === 'NotNull');
 		
-		assert.strictEqual(queryAttr?.parameterType, 'ReportDto');
-		assert.strictEqual(queryAttr?.parameterName, 'report');
-		assert.strictEqual(notNullAttr?.parameterType, 'UserModel');
-		assert.strictEqual(notNullAttr?.parameterName, 'user');
+		expect(queryAttr?.parameterType).toBe('ReportDto');
+		expect(queryAttr?.parameterName).toBe('report');
+		expect(notNullAttr?.parameterType).toBe('UserModel');
+		expect(notNullAttr?.parameterName).toBe('user');
 	});
 
 	test('should detect parameter attributes spanning multiple lines', () => {
@@ -536,9 +536,9 @@ public class TestClass
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const notNullAttr = attributes.find(a => a.name === 'NotNull' && a.targetElement === 'parameter');
-		assert.ok(notNullAttr, 'Should detect NotNull parameter attribute');
-		assert.strictEqual(notNullAttr?.parameterType, 'object?');
-		assert.strictEqual(notNullAttr?.parameterName, 'value');
+		expect(notNullAttr).toBeTruthy();
+		expect(notNullAttr?.parameterType).toBe('object?');
+		expect(notNullAttr?.parameterName).toBe('value');
 	});
 
 	test('should handle attributes on class and parameter level together', () => {
@@ -555,15 +555,15 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 3, 'Should detect class, method, and parameter attributes');
+		expect(attributes.length).toBe(3);
 		
 		const classAttrs = attributes.filter(a => a.targetElement === 'class');
 		const methodAttrs = attributes.filter(a => a.targetElement === 'method');
 		const paramAttrs = attributes.filter(a => a.targetElement === 'parameter');
 		
-		assert.strictEqual(classAttrs.length, 1, 'Should have 1 class attribute');
-		assert.strictEqual(methodAttrs.length, 1, 'Should have 1 method attribute');
-		assert.strictEqual(paramAttrs.length, 1, 'Should have 1 parameter attribute');
+		expect(classAttrs.length).toBe(1);
+		expect(methodAttrs.length).toBe(1);
+		expect(paramAttrs.length).toBe(1);
 	});
 
 	test('should NOT detect parameter attributes without proper parameter declaration', () => {
@@ -580,11 +580,11 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 0, 'Should not detect array access as parameter attribute');
+		expect(attributes.length).toBe(0);
 	});
 });
 
-suite('Field Attributes', () => {
+describe('Field Attributes', () => {
 	test('should detect simple attributes on fields', () => {
 		const code = `
 namespace TestNamespace
@@ -599,10 +599,10 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Serializable'), 'Should include Serializable on field');
-		assert.ok(names.includes('NonSerialized'), 'Should include NonSerialized on field');
+		expect(names.includes('Serializable')).toBe(true);
+		expect(names.includes('NonSerialized')).toBe(true);
 	});
 
 	test('should detect attributes on public fields', () => {
@@ -619,13 +619,14 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const rangeAttr = attributes.find(a => a.name === 'Range');
-		assert.ok(rangeAttr?.arguments.includes('1'), 'Range should have arguments');
+		expect(rangeAttr).toBeTruthy();
+		expect(rangeAttr?.arguments.includes('1')).toBe(true);
 	});
 });
 
-suite('Event Attributes', () => {
+describe('Event Attributes', () => {
 	test('should detect attributes on events', () => {
 		const code = `
 namespace TestNamespace
@@ -640,14 +641,14 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Obsolete'), 'Should detect Obsolete on event');
-		assert.ok(names.includes('Serializable'), 'Should detect Serializable on event');
+		expect(names.includes('Obsolete')).toBe(true);
+		expect(names.includes('Serializable')).toBe(true);
 	});
 });
 
-suite('Return Type Attributes', () => {
+describe('Return Type Attributes', () => {
 	test('should detect return type attributes on methods', () => {
 		const code = `
 namespace TestNamespace
@@ -668,9 +669,9 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const returnAttrs = attributes.filter(a => a.targetElement === 'return');
-		assert.strictEqual(returnAttrs.length, 2, 'Should detect 2 return type attributes');
+		expect(returnAttrs.length).toBe(2);
 	});
 
 	test('should detect return type attributes with explicit target on properties', () => {
@@ -687,13 +688,13 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const returnAttrs = attributes.filter(a => a.targetElement === 'return');
-		assert.strictEqual(returnAttrs.length, 2, 'Should detect return attributes on properties');
+		expect(returnAttrs.length).toBe(2);
 	});
 });
 
-suite('Explicit Target Specifiers', () => {
+describe('Explicit Target Specifiers', () => {
 	test('should detect attributes with explicit type target', () => {
 		const code = `
 namespace TestNamespace
@@ -704,8 +705,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Serializable');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Serializable');
 	});
 
 	test('should detect attributes with explicit method target', () => {
@@ -721,8 +722,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Obsolete');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Obsolete');
 	});
 
 	test('should detect attributes with explicit field target', () => {
@@ -736,8 +737,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Serializable');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Serializable');
 	});
 
 	test('should detect attributes with explicit property target', () => {
@@ -751,8 +752,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Required');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Required');
 	});
 
 	test('should detect attributes with explicit param target', () => {
@@ -767,8 +768,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Required');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Required');
 	});
 
 	test('should detect attributes with explicit event target', () => {
@@ -782,12 +783,12 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'Serializable');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('Serializable');
 	});
 });
 
-suite('Global/Assembly Attributes', () => {
+describe('Global/Assembly Attributes', () => {
 	test('should detect assembly-level attributes', () => {
 		const code = `[assembly: AssemblyVersion("1.0.0")]
 [assembly: AssemblyCulture("en-US")]
@@ -799,10 +800,10 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 2);
+		expect(attributes.length).toBe(2);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('AssemblyVersion'), 'Should detect AssemblyVersion');
-		assert.ok(names.includes('AssemblyCulture'), 'Should detect AssemblyCulture');
+		expect(names.includes('AssemblyVersion')).toBe(true);
+		expect(names.includes('AssemblyCulture')).toBe(true);
 	});
 
 	test('should detect module-level attributes', () => {
@@ -815,8 +816,8 @@ public class TestClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 1);
-		assert.strictEqual(attributes[0].name, 'MyModuleAttribute');
+		expect(attributes.length).toBe(1);
+		expect(attributes[0].name).toBe('MyModuleAttribute');
 	});
 
 	test('should detect assembly attributes with arguments', () => {
@@ -831,13 +832,13 @@ public class Test
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attributes.length, 3);
+		expect(attributes.length).toBe(3);
 		const versionAttr = attributes.find(a => a.name === 'AssemblyFileVersion');
-		assert.ok(versionAttr?.arguments.includes('2.5.1.0'), 'Should include version argument');
+		expect(versionAttr?.arguments.includes('2.5.1.0')).toBe(true);
 	});
 });
 
-suite('Type Parameter Attributes', () => {
+describe('Type Parameter Attributes', () => {
 	test('should detect attributes on generic type parameters', () => {
 		const code = `
 namespace TestNamespace
@@ -852,11 +853,11 @@ public interface IGeneric<[Contravariant] U>
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(Array.isArray(attributes), 'Should return array without crashing');
+		expect(Array.isArray(attributes)).toBe(true);
 	});
 });
 
-suite('Complex Multi-Level Attributes', () => {
+describe('Complex Multi-Level Attributes', () => {
 	test('should detect mix of class, field, property, and method attributes', () => {
 		const code = `
 namespace TestNamespace
@@ -886,13 +887,13 @@ public class User
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.ok(attributes.length >= 7, 'Should detect class, field, property, method, and return attributes');
+		expect(attributes.length).toBeGreaterThanOrEqual(7);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Serializable'), 'Should include class attribute');
-		assert.ok(names.includes('StringLength'), 'Should include field attribute');
-		assert.ok(names.includes('Key'), 'Should include property attribute');
-		assert.ok(names.includes('Obsolete'), 'Should include method attribute');
-		assert.ok(names.includes('NotNull'), 'Should include return attribute');
+		expect(names.includes('Serializable')).toBe(true);
+		expect(names.includes('StringLength')).toBe(true);
+		expect(names.includes('Key')).toBe(true);
+		expect(names.includes('Obsolete')).toBe(true);
+		expect(names.includes('NotNull')).toBe(true);
 	});
 
 	test('should handle assembly and type attributes together', () => {
@@ -907,10 +908,10 @@ public class LegacyClass
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.ok(attributes.length >= 2, 'Should detect both assembly and type attributes');
+		expect(attributes.length).toBeGreaterThanOrEqual(2);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('AssemblyVersion'), 'Should detect assembly attribute');
-		assert.ok(names.includes('Obsolete') || names.includes('Serializable'), 'Should detect type attributes');
+		expect(names.includes('AssemblyVersion')).toBe(true);
+		expect(names.includes('Obsolete') || names.includes('Serializable')).toBe(true);
 	});
 
 	test('should handle method with stacked attributes, return attribute, and parameter attributes', () => {
@@ -929,35 +930,34 @@ public class UserService
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		
-		assert.ok(attributes.length >= 4, `Expected at least 4 attributes, got ${attributes.length}`);
+		expect(attributes.length).toBeGreaterThanOrEqual(4);
 		
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Cacheable'), 'Should include Cacheable method attribute');
-		assert.ok(names.includes('Loggable'), 'Should include Loggable method attribute');
-		assert.ok(names.includes('NotNull'), 'Should include NotNull return attribute');
-		assert.ok(names.includes('Range'), 'Should include Range parameter attribute');
+		expect(names.includes('Cacheable')).toBe(true);
+		expect(names.includes('Loggable')).toBe(true);
+		expect(names.includes('NotNull')).toBe(true);
+		expect(names.includes('Range')).toBe(true);
 		
 		// Verify target elements
 		const cacheableAttr = attributes.find(a => a.name === 'Cacheable');
-		assert.strictEqual(cacheableAttr?.targetElement, 'method', 'Cacheable should target method');
-		assert.strictEqual(cacheableAttr?.targetName, 'GetUser', 'Cacheable should have targetName GetUser');
+		expect(cacheableAttr?.targetElement).toBe('method');
+		expect(cacheableAttr?.targetName).toBe('GetUser');
 		
 		const loggableAttr = attributes.find(a => a.name === 'Loggable');
-		assert.strictEqual(loggableAttr?.targetElement, 'method', 'Loggable should target method');
-		assert.strictEqual(loggableAttr?.targetName, 'GetUser', 'Loggable should have targetName GetUser');
+		expect(loggableAttr?.targetElement).toBe('method');
+		expect(loggableAttr?.targetName).toBe('GetUser');
 		
 		const notNullAttr = attributes.find(a => a.name === 'NotNull');
-		assert.strictEqual(notNullAttr?.targetElement, 'return', 'NotNull should target return');
-		assert.strictEqual(notNullAttr?.targetName, 'GetUser', 'NotNull should have targetName GetUser');
+		expect(notNullAttr?.targetElement).toBe('return');
+		expect(notNullAttr?.targetName).toBe('GetUser');
 		
 		const rangeAttr = attributes.find(a => a.name === 'Range');
-		assert.strictEqual(rangeAttr?.targetElement, 'parameter', 'Range should target parameter');
-		assert.strictEqual(rangeAttr?.targetName, 'id', 'Range should have targetName id');
+		expect(rangeAttr?.targetElement).toBe('parameter');
+		expect(rangeAttr?.targetName).toBe('id');
 	});
 });
 
-suite('Additional Complex Real-World Attributes', () => {
+describe('Additional Complex Real-World Attributes', () => {
 	test('should detect property with enum-based DataType attribute', () => {
 		const code = `
 namespace TestNamespace
@@ -969,11 +969,11 @@ public class Article
 }
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
-		assert.ok(attributes.length >= 1);
+		expect(attributes.length).toBeGreaterThanOrEqual(1);
 		const dataTypeAttr = attributes.find(a => a.name === 'DataType');
-		assert.ok(dataTypeAttr, 'Should detect DataType attribute');
-		assert.strictEqual(dataTypeAttr?.targetElement, 'property', 'DataType should target property');
-		assert.strictEqual(dataTypeAttr?.targetName, 'PublishedDate', 'DataType should target PublishedDate property');
+		expect(dataTypeAttr).toBeDefined();
+		expect(dataTypeAttr?.targetElement).toBe('property');
+		expect(dataTypeAttr?.targetName).toBe('PublishedDate');
 	});
 
 	test('should detect method returning nullable array with Cacheable and return MaybeNull', () => {
@@ -992,15 +992,15 @@ public class ArticleService
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Cacheable'), 'Should detect Cacheable attribute');
-		assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
+		expect(names.includes('Cacheable')).toBe(true);
+		expect(names.includes('MaybeNull')).toBe(true);
 		
 		const cacheableAttr = attributes.find(a => a.name === 'Cacheable');
-		assert.strictEqual(cacheableAttr?.targetName, 'GetAllArticles', 'Cacheable should target GetAllArticles');
+		expect(cacheableAttr?.targetName).toBe('GetAllArticles');
 		
 		const maybeNullAttr = attributes.find(a => a.name === 'MaybeNull');
-		assert.strictEqual(maybeNullAttr?.targetElement, 'return', 'MaybeNull should target return');
-		assert.strictEqual(maybeNullAttr?.targetName, 'GetAllArticles', 'MaybeNull should target GetAllArticles');
+		expect(maybeNullAttr?.targetElement).toBe('return');
+		expect(maybeNullAttr?.targetName).toBe('GetAllArticles');
 	});
 
 	test('should detect property with Required and EmailAddress attributes', () => {
@@ -1016,14 +1016,14 @@ public class User
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Required'), 'Should detect Required attribute');
-		assert.ok(names.includes('EmailAddress'), 'Should detect EmailAddress attribute');
+		expect(names.includes('Required')).toBe(true);
+		expect(names.includes('EmailAddress')).toBe(true);
 		
 		const requiredAttr = attributes.find(a => a.name === 'Required');
-		assert.strictEqual(requiredAttr?.targetName, 'AuthorEmail', 'Required should target AuthorEmail');
+		expect(requiredAttr?.targetName).toBe('AuthorEmail');
 		
 		const emailAttr = attributes.find(a => a.name === 'EmailAddress');
-		assert.strictEqual(emailAttr?.targetName, 'AuthorEmail', 'EmailAddress should target AuthorEmail');
+		expect(emailAttr?.targetName).toBe('AuthorEmail');
 	});
 
 	test('should detect property with multiple validation attributes', () => {
@@ -1040,13 +1040,13 @@ public class Credentials
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Required'), 'Should detect Required');
-		assert.ok(names.includes('MinLength'), 'Should detect MinLength');
-		assert.ok(names.includes('Obsolete'), 'Should detect Obsolete');
-		
+		expect(names.includes('Required')).toBe(true);
+		expect(names.includes('MinLength')).toBe(true);
+		expect(names.includes('Obsolete')).toBe(true);
+
 		const allAttrs = attributes.filter(a => ['Required', 'MinLength', 'Obsolete'].includes(a.name));
 		allAttrs.forEach(attr => {
-			assert.strictEqual(attr?.targetName, 'Password', `${attr.name} should target Password`);
+			expect(attr?.targetName).toBe('Password');
 		});
 	});
 
@@ -1062,9 +1062,9 @@ public class CacheData
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const nonSerializedAttr = attributes.find(a => a.name === 'NonSerialized');
-		assert.ok(nonSerializedAttr, 'Should detect NonSerialized attribute');
-		assert.strictEqual(nonSerializedAttr?.targetElement, 'field', 'NonSerialized should target field');
-		assert.strictEqual(nonSerializedAttr?.targetName, '_contentCache', 'NonSerialized should target _contentCache');
+		expect(nonSerializedAttr).toBeDefined();
+		expect(nonSerializedAttr?.targetElement).toBe('field');
+		expect(nonSerializedAttr?.targetName).toBe('_contentCache');
 	});
 
 	test('should detect property with Range attribute on leading line', () => {
@@ -1079,9 +1079,9 @@ public class Review
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const rangeAttr = attributes.find(a => a.name === 'Range');
-		assert.ok(rangeAttr, 'Should detect Range attribute');
-		assert.strictEqual(rangeAttr?.targetElement, 'property', 'Range should target property');
-		assert.strictEqual(rangeAttr?.targetName, 'Rating', 'Range should target Rating property');
+		expect(rangeAttr).toBeDefined();
+		expect(rangeAttr?.targetElement).toBe('property');
+		expect(rangeAttr?.targetName).toBe('Rating');
 	});
 
 	test('should detect property with StringLength and MinimumLength parameters', () => {
@@ -1097,13 +1097,13 @@ public class Account
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Required'), 'Should detect Required');
-		assert.ok(names.includes('StringLength'), 'Should detect StringLength');
-		
+		expect(names.includes('Required')).toBe(true);
+		expect(names.includes('StringLength')).toBe(true);
+
 		const stringLengthAttr = attributes.find(a => a.name === 'StringLength');
-		assert.ok(stringLengthAttr?.arguments.includes('100'), 'Should capture length parameter');
-		assert.ok(stringLengthAttr?.arguments.includes('MinimumLength'), 'Should capture named parameter');
-		assert.strictEqual(stringLengthAttr?.targetName, 'Username', 'StringLength should target Username');
+		expect(stringLengthAttr?.arguments.includes('100')).toBe(true);
+		expect(stringLengthAttr?.arguments.includes('MinimumLength')).toBe(true);
+		expect(stringLengthAttr?.targetName).toBe('Username');
 	});
 
 	test('should detect event with Serializable attribute', () => {
@@ -1118,9 +1118,9 @@ public class ArticlePublisher
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const serializableAttr = attributes.find(a => a.name === 'Serializable');
-		assert.ok(serializableAttr, 'Should detect Serializable on event');
-		assert.strictEqual(serializableAttr?.targetElement, 'event', 'Serializable should target event');
-		assert.strictEqual(serializableAttr?.targetName, 'ArticlePublished', 'Serializable should target ArticlePublished event');
+		expect(serializableAttr).toBeDefined();
+		expect(serializableAttr?.targetElement).toBe('event');
+		expect(serializableAttr?.targetName).toBe('ArticlePublished');
 	});
 
 	test('should detect field-scoped attribute on method declaration', () => {
@@ -1138,8 +1138,8 @@ public class UserRepository
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const fieldAttr = attributes.find(a => a.name === 'Serializable');
-		assert.ok(fieldAttr, 'Should detect field-scoped Serializable attribute');
-		assert.strictEqual(fieldAttr?.targetSpecifier, 'field', 'Should recognize field: target specifier');
+		expect(fieldAttr).toBeDefined();
+		expect(fieldAttr?.targetSpecifier).toBe('field');
 	});
 
 	test('should detect method with Authorize and Loggable attributes with return MaybeNull', () => {
@@ -1159,25 +1159,25 @@ public class ArticleController
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('Authorize'), 'Should detect Authorize attribute');
-		assert.ok(names.includes('Loggable'), 'Should detect Loggable attribute');
-		assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
-		assert.ok(names.includes('Required'), 'Should detect Required parameter attribute');
-		
+		expect(names.includes('Authorize')).toBe(true);
+		expect(names.includes('Loggable')).toBe(true);
+		expect(names.includes('MaybeNull')).toBe(true);
+		expect(names.includes('Required')).toBe(true);
+
 		const authorizeAttr = attributes.find(a => a.name === 'Authorize');
-		assert.strictEqual(authorizeAttr?.arguments.includes('Editor'), true, 'Authorize should have Editor argument');
-		assert.strictEqual(authorizeAttr?.targetName, 'UpdateArticle', 'Authorize should target UpdateArticle');
-		
+		expect(authorizeAttr?.arguments.includes('Editor')).toBe(true);
+		expect(authorizeAttr?.targetName).toBe('UpdateArticle');
+
 		const loggableAttr = attributes.find(a => a.name === 'Loggable');
-		assert.strictEqual(loggableAttr?.targetName, 'UpdateArticle', 'Loggable should target UpdateArticle');
-		
+		expect(loggableAttr?.targetName).toBe('UpdateArticle');
+
 		const maybeNullAttr = attributes.find(a => a.name === 'MaybeNull');
-		assert.strictEqual(maybeNullAttr?.targetElement, 'return', 'MaybeNull should target return');
-		assert.strictEqual(maybeNullAttr?.targetName, 'UpdateArticle', 'MaybeNull should target UpdateArticle');
-		
+		expect(maybeNullAttr?.targetElement).toBe('return');
+		expect(maybeNullAttr?.targetName).toBe('UpdateArticle');
+
 		const requiredAttr = attributes.find(a => a.name === 'Required');
-		assert.strictEqual(requiredAttr?.targetElement, 'parameter', 'Required should target parameter');
-		assert.strictEqual(requiredAttr?.targetName, 'article', 'Required should target article parameter');
+		expect(requiredAttr?.targetElement).toBe('parameter');
+		expect(requiredAttr?.targetName).toBe('article');
 	});
 
 	test('should handle assembly and module attributes with fully qualified names', () => {
@@ -1193,11 +1193,9 @@ public class LoggingMiddleware
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
 		
-		assert.ok(names.length >= 2, 'Should detect assembly and module attributes');
-		assert.ok(names.includes('AssemblyVersion') || attributes.some(a => a.fullName.includes('AssemblyVersion')), 
-			'Should detect AssemblyVersion');
-		assert.ok(names.includes('SuppressMessage') || attributes.some(a => a.fullName.includes('SuppressMessage')), 
-			'Should detect SuppressMessage');
+		expect(names.length).toBeGreaterThanOrEqual(2);
+		expect(names.includes('AssemblyVersion')).toBe(true);
+		expect(names.includes('SuppressMessage')).toBe(true);
 	});
 
 	test('should detect enum value with Display attribute', () => {
@@ -1215,11 +1213,11 @@ public enum UserRole
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const displayAttrs = attributes.filter(a => a.name === 'Display' || a.fullName.includes('Display'));
-		assert.ok(displayAttrs.length >= 2, 'Should detect Display attributes on enum values');
+		expect(displayAttrs.length).toBeGreaterThanOrEqual(2);
 		
 		// Check that arguments are captured (Name = "Guest")
 		displayAttrs.forEach(attr => {
-			assert.ok(attr.arguments.includes('Name'), 'Display attribute should have Name argument');
+			expect(attr.arguments.includes('Name')).toBe(true);
 		});
 	});
 
@@ -1241,19 +1239,19 @@ public class UserService
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
 		
-		assert.ok(names.includes('ApiEndpoint'), 'Should detect ApiEndpoint attribute');
-		assert.ok(names.includes('Obsolete'), 'Should detect Obsolete attribute');
-		assert.ok(names.includes('NotNull'), 'Should detect NotNull return attribute');
-		assert.strictEqual((attributes.filter(a => a.name === 'Validate')).length, 2, 'Should detect both Validate parameter attributes');
-		
+		expect(names.includes('ApiEndpoint')).toBe(true);
+		expect(names.includes('Obsolete')).toBe(true);
+		expect(names.includes('NotNull')).toBe(true);
+		expect((attributes.filter(a => a.name === 'Validate')).length).toBe(2);
+
 		const apiAttr = attributes.find(a => a.name === 'ApiEndpoint');
-		assert.strictEqual(apiAttr?.targetElement, 'method', 'ApiEndpoint should target method');
-		assert.strictEqual(apiAttr?.targetName, 'RegisterUser', 'ApiEndpoint should target RegisterUser');
-		assert.ok(apiAttr?.arguments.includes('/api/users/register'), 'Should capture endpoint path');
+		expect(apiAttr?.targetElement).toBe('method');
+		expect(apiAttr?.targetName).toBe('RegisterUser');
+		expect(apiAttr?.arguments.includes('/api/users/register')).toBe(true);
 		
 		const validateAttrs = attributes.filter(a => a.name === 'Validate');
-		assert.ok(validateAttrs.some(v => v.targetName === 'email'), 'Should detect Validate on email parameter');
-		assert.ok(validateAttrs.some(v => v.targetName === 'username'), 'Should detect Validate on username parameter');
+		expect(validateAttrs.some(v => v.targetName === 'email')).toBe(true);
+		expect(validateAttrs.some(v => v.targetName === 'username')).toBe(true);
 	});
 
 	test('should detect method with ApiEndpoint, return MaybeNull, field attribute, and parameter Range', () => {
@@ -1274,27 +1272,27 @@ public class UserRepository
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
 		
-		assert.ok(names.includes('ApiEndpoint'), 'Should detect ApiEndpoint');
-		assert.ok(names.includes('MaybeNull'), 'Should detect MaybeNull return attribute');
-		assert.ok(names.includes('Serializable'), 'Should detect Serializable with field: specifier');
-		assert.ok(names.includes('Range'), 'Should detect Range parameter attribute');
-		
+		expect(names.includes('ApiEndpoint')).toBe(true);
+		expect(names.includes('MaybeNull')).toBe(true);
+		expect(names.includes('Serializable')).toBe(true);
+		expect(names.includes('Range')).toBe(true);
+
 		const apiAttr = attributes.find(a => a.name === 'ApiEndpoint');
-		assert.strictEqual(apiAttr?.targetName, 'GetUser', 'ApiEndpoint should target GetUser');
-		
+		expect(apiAttr?.targetName).toBe('GetUser');
+
 		const maybeAttr = attributes.find(a => a.name === 'MaybeNull');
-		assert.strictEqual(maybeAttr?.targetElement, 'return', 'MaybeNull should target return');
-		assert.strictEqual(maybeAttr?.targetName, 'GetUser', 'MaybeNull should target GetUser');
-		
+		expect(maybeAttr?.targetElement).toBe('return');
+		expect(maybeAttr?.targetName).toBe('GetUser');
+
 		const fieldAttr = attributes.find(a => a.name === 'Serializable');
-		assert.strictEqual(fieldAttr?.targetSpecifier, 'field', 'Serializable should have field: specifier');
-		
+		expect(fieldAttr?.targetSpecifier).toBe('field');
+
 		const rangeAttr = attributes.find(a => a.name === 'Range');
-		assert.strictEqual(rangeAttr?.targetName, 'userId', 'Range should target userId parameter');
+		expect(rangeAttr?.targetName).toBe('userId');
 	});
 });
 
-suite('Interface Method Signature Extraction', () => {
+describe('Interface Method Signature Extraction', () => {
 	test('should extract method signatures from simple interface', () => {
 		const code = `
 namespace TestNamespace
@@ -1307,11 +1305,11 @@ public interface IUserRepository
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IUserRepository');
-		assert.strictEqual(signatures.length, 3, 'Should extract 3 method signatures');
-		assert.ok(signatures.some(s => s.signature.includes('GetUser')), 'Should include GetUser method');
-		assert.ok(signatures.some(s => s.signature.includes('CreateUser')), 'Should include CreateUser method');
-		assert.ok(signatures.some(s => s.signature.includes('DeleteUser')), 'Should include DeleteUser method');
-		assert.ok(signatures.every(s => typeof s.line === 'number' && s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBe(3);
+		expect(signatures.some(s => s.signature.includes('GetUser'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('CreateUser'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('DeleteUser'))).toBe(true);
+		expect(signatures.every(s => typeof s.line === 'number' && s.line > 0)).toBe(true);
 	});
 
 	test('should extract method signatures with generic types', () => {
@@ -1327,12 +1325,12 @@ public interface IRepository<T>
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IRepository');
-		assert.ok(signatures.length >= 4, 'Should extract at least 4 method signatures');
-		assert.ok(signatures.some(s => s.signature.includes('GetById')), 'Should include GetById');
-		assert.ok(signatures.some(s => s.signature.includes('GetAll')), 'Should include GetAll');
-		assert.ok(signatures.some(s => s.signature.includes('GetByIdAsync')), 'Should include GetByIdAsync');
-		assert.ok(signatures.some(s => s.signature.includes('SearchBy')), 'Should include SearchBy');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have positive line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(4);
+		expect(signatures.some(s => s.signature.includes('GetById'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('GetAll'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('GetByIdAsync'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('SearchBy'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should extract method signatures with nullable return types', () => {
@@ -1347,10 +1345,10 @@ public interface IArticleService
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IArticleService');
-		assert.ok(signatures.length >= 3, 'Should extract method signatures with nullable types');
-		assert.ok(signatures.some(s => s.signature.includes('Article?')), 'Should include nullable return type');
-		assert.ok(signatures.some(s => s.signature.includes('Article[]')), 'Should include array return type');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(3);
+		expect(signatures.some(s => s.signature.includes('Article?'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('Article[]'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should extract property signatures from interface', () => {
@@ -1365,11 +1363,11 @@ public interface IEntity
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IEntity');
-		assert.ok(signatures.length >= 3, 'Should extract property signatures');
-		assert.ok(signatures.some(s => s.signature.includes('Id')), 'Should include Id property');
-		assert.ok(signatures.some(s => s.signature.includes('Name')), 'Should include Name property');
-		assert.ok(signatures.some(s => s.signature.includes('CreatedAt')), 'Should include CreatedAt property');
-		assert.ok(signatures.every(s => s.line > 0), 'All properties should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(3);
+		expect(signatures.some(s => s.signature.includes('Id'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('Name'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('CreatedAt'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should skip attribute lines when extracting signatures', () => {
@@ -1386,11 +1384,11 @@ public interface ILoggingService
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'ILoggingService');
-		assert.ok(signatures.length >= 2, 'Should skip attributes and extract methods');
-		assert.ok(signatures.some(s => s.signature.includes('Log')), 'Should include Log method');
-		assert.ok(signatures.some(s => s.signature.includes('LogAsync')), 'Should include LogAsync method');
-		assert.ok(!signatures.some(s => s.signature.includes('[Obsolete')), 'Should not include attribute in signature');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(2);
+		expect(signatures.some(s => s.signature.includes('Log'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('LogAsync'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('[Obsolete'))).toBe(false);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should extract method with complex parameters', () => {
@@ -1405,11 +1403,11 @@ public interface IDataService
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IDataService');
-		assert.ok(signatures.length >= 3, 'Should extract methods with complex parameters');
-		assert.ok(signatures.some(s => s.signature.includes('Expression')), 'Should handle Expression parameters');
-		assert.ok(signatures.some(s => s.signature.includes('CancellationToken')), 'Should handle CancellationToken');
-		assert.ok(signatures.some(s => s.signature.includes('params')), 'Should handle params keyword');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(3);
+		expect(signatures.some(s => s.signature.includes('Expression'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('CancellationToken'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('params'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should detect interface with attributes and extract methods', () => {
@@ -1429,15 +1427,15 @@ public interface IPaymentService
 }`;
 		const attributes = CSharpParser.parseAttributes(code);
 		const names = attributes.map(a => a.name);
-		assert.ok(names.includes('ServiceContract'), 'Should detect ServiceContract attribute');
-		assert.ok(names.includes('Serializable'), 'Should detect Serializable attribute');
-		assert.ok(names.includes('OperationContract'), 'Should detect OperationContract attribute');
+		expect(names.includes('ServiceContract')).toBe(true);
+		expect(names.includes('Serializable')).toBe(true);
+		expect(names.includes('OperationContract')).toBe(true);
 		
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IPaymentService');
-		assert.ok(signatures.length >= 2, 'Should extract methods ignoring attributes');
-		assert.ok(signatures.some(s => s.signature.includes('ProcessPayment')), 'Should include ProcessPayment');
-		assert.ok(signatures.some(s => s.signature.includes('ProcessPaymentAsync')), 'Should include ProcessPaymentAsync');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(2);
+		expect(signatures.some(s => s.signature.includes('ProcessPayment'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('ProcessPaymentAsync'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should handle interface with async methods and Task types', () => {
@@ -1454,11 +1452,11 @@ public interface IAsyncRepository<T>
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IAsyncRepository');
-		assert.ok(signatures.length >= 5, 'Should extract async methods');
-		assert.ok(signatures.every(s => s.signature.includes('Task')), 'All methods should be async/Task-based');
-		assert.ok(signatures.some(s => s.signature.includes('GetByIdAsync')), 'Should include GetByIdAsync');
-		assert.ok(signatures.some(s => s.signature.includes('InsertAsync')), 'Should include InsertAsync');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.length).toBeGreaterThanOrEqual(5);
+		expect(signatures.every(s => s.signature.includes('Task'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('GetByIdAsync'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('InsertAsync'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should handle interface with event declarations', () => {
@@ -1475,9 +1473,9 @@ public interface INotificationService
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INotificationService');
-		assert.ok(signatures.some(s => s.signature.includes('Subscribe')), 'Should include Subscribe method');
-		assert.ok(signatures.some(s => s.signature.includes('Unsubscribe')), 'Should include Unsubscribe method');
-		assert.ok(signatures.every(s => s.line > 0), 'All signatures should have line numbers');
+		expect(signatures.some(s => s.signature.includes('Subscribe'))).toBe(true);
+		expect(signatures.some(s => s.signature.includes('Unsubscribe'))).toBe(true);
+		expect(signatures.every(s => s.line > 0)).toBe(true);
 	});
 
 	test('should return empty array for non-existent interface', () => {
@@ -1490,7 +1488,7 @@ public interface IExisting
 }
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'INonExistent');
-		assert.strictEqual(signatures.length, 0, 'Should return empty array for non-existent interface');
+		expect(signatures.length).toBe(0);
 	});
 
 	test('should correctly extract multiline interface method signatures', () => {
@@ -1517,25 +1515,25 @@ public interface IOrderService
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IOrderService');
 		
 		// Should extract all three methods
-		assert.strictEqual(signatures.length, 3, 'Should extract all three methods');
+		expect(signatures.length).toBe(3);
 		
 		// Check for CreateOrder method (multiline)
 		const createOrder = signatures.find(s => s.signature.includes('CreateOrder'));
-		assert.ok(createOrder !== undefined, 'Should find CreateOrder method');
-		assert.ok(createOrder!.signature.includes('(') && createOrder!.signature.includes('customerId'), 'CreateOrder signature should include parameters or at least opening paren');
+		expect(createOrder !== undefined).toBe(true);
+		expect(createOrder!.signature.includes('(') && createOrder!.signature.includes('customerId')).toBe(true);
 		
 		// Check for UpdateOrderStatus method (multiline)
 		const updateStatus = signatures.find(s => s.signature.includes('UpdateOrderStatus'));
-		assert.ok(updateStatus !== undefined, 'Should find UpdateOrderStatus method');
-		assert.ok(updateStatus!.signature.includes('(') && updateStatus!.signature.includes('orderId'), 'UpdateOrderStatus signature should include parameters or at least opening paren');
+		expect(updateStatus !== undefined).toBe(true);
+		expect(updateStatus!.signature.includes('(') && updateStatus!.signature.includes('orderId')).toBe(true);
 		
 		// Check for CancelOrder method (single line)
 		const cancel = signatures.find(s => s.signature.includes('CancelOrder'));
-		assert.ok(cancel !== undefined, 'Should find CancelOrder method');
+		expect(cancel !== undefined).toBe(true);
 		
 		// Verify line numbers are in order
-		assert.ok(createOrder!.line < updateStatus!.line, 'CreateOrder should be before UpdateOrderStatus');
-		assert.ok(updateStatus!.line < cancel!.line, 'UpdateOrderStatus should be before CancelOrder');
+		expect(createOrder!.line < updateStatus!.line).toBe(true);
+		expect(updateStatus!.line < cancel!.line).toBe(true);
 	});
 
 	test('should extract interface methods with multiline return type - tuple with lists', () => {
@@ -1552,12 +1550,12 @@ public interface ISomeInterface
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'ISomeInterface');
 		
-		assert.strictEqual(signatures.length, 1, 'Should extract exactly one method signature');
+		expect(signatures.length).toBe(1);
 		
 		const funcName = signatures.find(s => s.signature.includes('FuncName'));
-		assert.ok(funcName !== undefined, 'Should find FuncName method');
-		assert.ok(funcName!.signature.includes('Task'), 'Should include Task in return type');
-		assert.ok(funcName!.signature.includes('('), 'Should include opening parenthesis');
+		expect(funcName !== undefined).toBe(true);
+		expect(funcName!.signature.includes('Task')).toBe(true);
+		expect(funcName!.signature.includes('(')).toBe(true);
 	});
 
 	test('should extract interface methods with return type on separate line', () => {
@@ -1573,11 +1571,11 @@ public interface IDataService
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IDataService');
 		
-		assert.strictEqual(signatures.length, 1, 'Should extract the method');
+		expect(signatures.length).toBe(1);
 		
 		const getData = signatures.find(s => s.signature.includes('GetData'));
-		assert.ok(getData !== undefined, 'Should find GetData method');
-		assert.ok(getData!.signature.includes('Task'), 'Should preserve Task in signature');
+		expect(getData !== undefined).toBe(true);
+		expect(getData!.signature.includes('Task')).toBe(true);
 	});
 
 	test('should extract interface methods with long generic parameter list', () => {
@@ -1595,11 +1593,11 @@ public interface IProcessor
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IProcessor');
 		
-		assert.strictEqual(signatures.length, 1, 'Should extract the generic method');
+		expect(signatures.length).toBe(1);
 		
 		const process = signatures[0];
-		assert.ok(process.signature.includes('Process'), 'Should include method name');
-		assert.ok(process.signature.includes('('), 'Should include parameters');
+		expect(process.signature.includes('Process')).toBe(true);
+		expect(process.signature.includes('(')).toBe(true);
 	});
 
 	test('should extract interface methods with multiline attributes and signature', () => {
@@ -1617,11 +1615,11 @@ public interface IEventHandler
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IEventHandler');
 		
-		assert.strictEqual(signatures.length, 1, 'Should extract the method');
+		expect(signatures.length).toBe(1);
 		
 		const handle = signatures.find(s => s.signature.includes('Handle'));
-		assert.ok(handle !== undefined, 'Should find Handle method');
-		assert.ok(handle!.signature.includes('Task'), 'Should include return type');
+		expect(handle !== undefined).toBe(true);
+		expect(handle!.signature.includes('Task')).toBe(true);
 	});
 
 	test('should extract interface methods with complex nested return type across multiple lines', () => {
@@ -1638,11 +1636,11 @@ public interface IComplexService
 }`;
 		const signatures = CSharpParser.extractInterfaceMethodSignatures(code, 'IComplexService');
 		
-		assert.strictEqual(signatures.length, 1, 'Should extract method with complex nested generics');
+		expect(signatures.length).toBe(1);
 		
 		const getComplex = signatures[0];
-		assert.ok(getComplex.signature.includes('GetComplexData'), 'Should include method name');
-		assert.ok(getComplex.signature.includes('Task'), 'Should preserve return type');
+		expect(getComplex.signature.includes('GetComplexData')).toBe(true);
+		expect(getComplex.signature.includes('Task')).toBe(true);
 	});
 
 	test('should correctly assign line numbers to stacked attributes on different lines', () => {
@@ -1666,24 +1664,24 @@ return new Product { Name = name, Price = price };
 		const rangeAttr = attrs.find((a: any) => a.name === 'Range');
 
 		// Verify all attributes were found
-		assert.strictEqual(apiEndpointAttr !== undefined, true, 'Should find ApiEndpoint');
-		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete');
-		assert.strictEqual(notNullAttr !== undefined, true, 'Should find NotNull');
-		assert.strictEqual(stringLengthAttr !== undefined, true, 'Should find StringLength');
-		assert.strictEqual(rangeAttr !== undefined, true, 'Should find Range');
+		expect(apiEndpointAttr !== undefined).toBe(true);
+		expect(obsoleteAttr !== undefined).toBe(true);
+		expect(notNullAttr !== undefined).toBe(true);
+		expect(stringLengthAttr !== undefined).toBe(true);
+		expect(rangeAttr !== undefined).toBe(true);
 
 		// Verify line numbers are different and in correct order
-		assert.strictEqual(apiEndpointAttr!.line, 2, 'ApiEndpoint should be on line 2');
-		assert.strictEqual(obsoleteAttr!.line, 3, 'Obsolete should be on line 3');
-		assert.strictEqual(notNullAttr!.line, 4, 'NotNull should be on line 4');
+		expect(apiEndpointAttr!.line).toBe(2);
+		expect(obsoleteAttr!.line).toBe(3);
+		expect(notNullAttr!.line).toBe(4);
 		// StringLength is on line 5 (in parameter list)
-		assert.strictEqual(stringLengthAttr!.line, 5, 'StringLength should be on line 5');
+		expect(stringLengthAttr!.line).toBe(5);
 		// Range is also on line 5 (same line as StringLength in parameters)
-		assert.strictEqual(rangeAttr!.line, 5, 'Range should be on line 5');
+		expect(rangeAttr!.line).toBe(5);
 
 		// Verify they're in ascending order (except parameters which can be on same line)
-		assert.strictEqual(apiEndpointAttr!.line < obsoleteAttr!.line, true, 'ApiEndpoint should come before Obsolete');
-		assert.strictEqual(obsoleteAttr!.line < notNullAttr!.line, true, 'Obsolete should come before NotNull');
+		expect(apiEndpointAttr!.line < obsoleteAttr!.line).toBe(true);
+		expect(obsoleteAttr!.line < notNullAttr!.line).toBe(true);
 	});
 
 	test('should correctly assign line numbers to assembly attributes on separate lines', () => {
@@ -1710,30 +1708,30 @@ using System.Reflection;
 		const versionAttr = attrs.find((a: any) => a.name === 'AssemblyVersionAttribute');
 
 		// Verify all attributes were found
-		assert.strictEqual(companyAttr !== undefined, true, 'Should find AssemblyCompanyAttribute');
-		assert.strictEqual(configAttr !== undefined, true, 'Should find AssemblyConfigurationAttribute');
-		assert.strictEqual(fileVersionAttr !== undefined, true, 'Should find AssemblyFileVersionAttribute');
-		assert.strictEqual(infoVersionAttr !== undefined, true, 'Should find AssemblyInformationalVersionAttribute');
-		assert.strictEqual(productAttr !== undefined, true, 'Should find AssemblyProductAttribute');
-		assert.strictEqual(titleAttr !== undefined, true, 'Should find AssemblyTitleAttribute');
-		assert.strictEqual(versionAttr !== undefined, true, 'Should find AssemblyVersionAttribute');
+		expect(companyAttr !== undefined).toBe(true);
+		expect(configAttr !== undefined).toBe(true);
+		expect(fileVersionAttr !== undefined).toBe(true);
+		expect(infoVersionAttr !== undefined).toBe(true);
+		expect(productAttr !== undefined).toBe(true);
+		expect(titleAttr !== undefined).toBe(true);
+		expect(versionAttr !== undefined).toBe(true);
 
 		// Verify each is on the correct line (lines 4-10)
-		assert.strictEqual(companyAttr!.line, 4, 'AssemblyCompanyAttribute should be on line 4');
-		assert.strictEqual(configAttr!.line, 5, 'AssemblyConfigurationAttribute should be on line 5');
-		assert.strictEqual(fileVersionAttr!.line, 6, 'AssemblyFileVersionAttribute should be on line 6');
-		assert.strictEqual(infoVersionAttr!.line, 7, 'AssemblyInformationalVersionAttribute should be on line 7');
-		assert.strictEqual(productAttr!.line, 8, 'AssemblyProductAttribute should be on line 8');
-		assert.strictEqual(titleAttr!.line, 9, 'AssemblyTitleAttribute should be on line 9');
-		assert.strictEqual(versionAttr!.line, 10, 'AssemblyVersionAttribute should be on line 10');
+		expect(companyAttr!.line).toBe(4);
+		expect(configAttr!.line).toBe(5);
+		expect(fileVersionAttr!.line).toBe(6);
+		expect(infoVersionAttr!.line).toBe(7);
+		expect(productAttr!.line).toBe(8);
+		expect(titleAttr!.line).toBe(9);
+		expect(versionAttr!.line).toBe(10);
 
 		// Verify they're in ascending order
-		assert.strictEqual(companyAttr!.line < configAttr!.line, true, 'CompanyAttribute should come before ConfigurationAttribute');
-		assert.strictEqual(configAttr!.line < fileVersionAttr!.line, true, 'ConfigurationAttribute should come before FileVersionAttribute');
-		assert.strictEqual(fileVersionAttr!.line < infoVersionAttr!.line, true, 'FileVersionAttribute should come before InformationalVersionAttribute');
-		assert.strictEqual(infoVersionAttr!.line < productAttr!.line, true, 'InformationalVersionAttribute should come before ProductAttribute');
-		assert.strictEqual(productAttr!.line < titleAttr!.line, true, 'ProductAttribute should come before TitleAttribute');
-		assert.strictEqual(titleAttr!.line < versionAttr!.line, true, 'TitleAttribute should come before VersionAttribute');
+		expect(companyAttr!.line < configAttr!.line).toBe(true);
+		expect(configAttr!.line < fileVersionAttr!.line).toBe(true);
+		expect(fileVersionAttr!.line < infoVersionAttr!.line).toBe(true);
+		expect(infoVersionAttr!.line < productAttr!.line).toBe(true);
+		expect(productAttr!.line < titleAttr!.line).toBe(true);
+		expect(titleAttr!.line < versionAttr!.line).toBe(true);
 	});
 
 	test('should correctly identify record struct as target element', () => {
@@ -1746,8 +1744,8 @@ public Guid Id { get; set; }
 		const attrs = CSharpParser.parseAttributes(code);
 		const someAttr = attrs.find((a: any) => a.name === 'SomeAttribute');
 
-		assert.strictEqual(someAttr !== undefined, true, 'Should find SomeAttribute');
-		assert.strictEqual(someAttr!.targetElement, 'recordStruct', 'SomeAttribute should target recordStruct, not unknown');
+		expect(someAttr).toBeDefined();
+		expect(someAttr!.targetElement).toBe('recordStruct');
 	});
 
 	test('should correctly identify property with brace on separate line', () => {
@@ -1763,14 +1761,12 @@ init { }
 		const maxLengthAttr = attrs.find((a: any) => a.name === 'MaxLength');
 		const minLengthAttr = attrs.find((a: any) => a.name === 'MinLength');
 
-		assert.strictEqual(maxLengthAttr !== undefined, true, 'Should find MaxLength');
-		assert.strictEqual(minLengthAttr !== undefined, true, 'Should find MinLength');
-		
-		assert.strictEqual(maxLengthAttr!.targetElement, 'property', 'MaxLength should target property, not unknown');
-		assert.strictEqual(minLengthAttr!.targetElement, 'property', 'MinLength should target property, not unknown');
-		
-		assert.strictEqual(maxLengthAttr!.targetName, 'Some', 'Property name should be Some');
-		assert.strictEqual(minLengthAttr!.targetName, 'Some', 'Property name should be Some');
+		expect(maxLengthAttr).toBeDefined();
+		expect(minLengthAttr).toBeDefined();
+		expect(maxLengthAttr!.targetElement).toBe('property');
+		expect(minLengthAttr!.targetElement).toBe('property');
+		expect(maxLengthAttr!.targetName).toBe('Some');
+		expect(minLengthAttr!.targetName).toBe('Some');
 	});
 
 	test('should handle complex nested braces in attribute arguments', () => {
@@ -1782,8 +1778,8 @@ public class ComplexType
 		const attrs = CSharpParser.parseAttributes(code);
 		const valAttr = attrs.find((a: any) => a.name === 'Validate');
 
-		assert.strictEqual(valAttr !== undefined, true, 'Should find Validate attribute with nested generics');
-		assert.strictEqual(valAttr!.targetElement, 'class', 'Should correctly identify class as target');
+		expect(valAttr).toBeDefined();
+		expect(valAttr!.targetElement).toBe('class');
 	});
 
 	test('should handle attributes on abstract sealed combined modifier class', () => {
@@ -1795,8 +1791,8 @@ public abstract sealed class StrangeClass
 		const attrs = CSharpParser.parseAttributes(code);
 		const sealedAttr = attrs.find((a: any) => a.name === 'Sealed');
 
-		assert.strictEqual(sealedAttr !== undefined, true, 'Should find attribute on abstract sealed class');
-		assert.strictEqual(sealedAttr!.targetElement, 'class', 'Should identify as class');
+		expect(sealedAttr).toBeDefined();
+		expect(sealedAttr!.targetElement).toBe('class');
 	});
 
 	test('should handle attributes on deeply nested multiline method signatures', () => {
@@ -1814,8 +1810,8 @@ return null;
 		const attrs = CSharpParser.parseAttributes(code);
 		const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
 
-		assert.strictEqual(obsAttr !== undefined, true, 'Should find attribute on complex multiline method');
-		assert.strictEqual(obsAttr!.targetElement, 'method', 'Should identify as method');
+		expect(obsAttr).toBeDefined();
+		expect(obsAttr!.targetElement).toBe('method');
 	});
 
 	test('should handle attributes on property with complex type and nested braces in initializer', () => {
@@ -1829,8 +1825,8 @@ set { }
 		const attrs = CSharpParser.parseAttributes(code);
 		const reqAttr = attrs.find((a: any) => a.name === 'Required');
 
-		assert.strictEqual(reqAttr !== undefined, true, 'Should find attribute on property with complex type');
-		assert.strictEqual(reqAttr!.targetElement, 'property', 'Should identify as property');
+		expect(reqAttr).toBeDefined();
+		expect(reqAttr!.targetElement).toBe('property');
 	});
 
 	test('should handle indexer with attribute', () => {
@@ -1844,8 +1840,8 @@ set { _items[index] = value; }
 		const attrs = CSharpParser.parseAttributes(code);
 		const obsAttr = attrs.find((a: any) => a.name === 'Obsolete');
 		
-		assert.strictEqual(obsAttr !== undefined, true, 'Should find Obsolete attribute on indexer');
-		assert.notStrictEqual(obsAttr!.targetElement, 'unknown', 'Indexer target should not be unknown');
+		expect(obsAttr).toBeDefined();
+		expect(obsAttr!.targetElement).toBe('property');
 	});
 
 	test('should correctly parse attributes with complex nested generics', () => {
@@ -1857,8 +1853,8 @@ public class OrderProcessor
 		const attrs = CSharpParser.parseAttributes(code);
 		const valAttr = attrs.find((a: any) => a.name === 'ValidationType');
 
-		assert.strictEqual(valAttr !== undefined, true, 'Should find ValidationType attribute');
-		assert.strictEqual(valAttr!.targetElement, 'class', 'Should identify class target');
+		expect(valAttr).toBeDefined();
+		expect(valAttr!.targetElement).toBe('class');
 	});
 
 	test('should correctly identify readonly struct', () => {
@@ -1872,8 +1868,8 @@ public int Y { get; }
 		const attrs = CSharpParser.parseAttributes(code);
 		const serAttr = attrs.find((a: any) => a.name === 'Serializable');
 
-		assert.strictEqual(serAttr !== undefined, true, 'Should find Serializable attribute');
-		assert.strictEqual(serAttr!.targetElement, 'struct', 'Should identify readonly struct as struct');
-		assert.strictEqual(serAttr!.targetName, 'Point', 'Struct name should be Point');
+		expect(serAttr).toBeDefined();
+		expect(serAttr!.targetElement).toBe('struct');
+		expect(serAttr!.targetName).toBe('Point');
 	});
 });

@@ -25,7 +25,7 @@ export class CacheManager {
   async loadCache(repository: AttributeRepository): Promise<boolean> {
     try {
       if (!fs.existsSync(this.cacheFilePath)) {
-        console.log('No cache file found');
+        console.debug('No cache file found');
         return false;
       }
 
@@ -33,7 +33,7 @@ export class CacheManager {
       const parsed = JSON.parse(cacheData);
 
       if (!parsed.attributes || typeof parsed.attributes !== 'object') {
-        console.log('Invalid cache format');
+        console.debug('Invalid cache format');
         return false;
       }
 
@@ -59,7 +59,7 @@ export class CacheManager {
         repository.setAttributeLocations(attrName, restoredLocations);
       }
 
-      console.log(`Loaded ${Object.keys(parsed.attributes).length} attributes from cache`);
+      console.debug(`Loaded ${Object.keys(parsed.attributes).length} attributes from cache`);
       this.isDirty = false;
       return true;
     } catch (error) {
@@ -119,7 +119,7 @@ export class CacheManager {
 
         fs.writeFileSync(this.cacheFilePath, JSON.stringify(cacheData, null, 2), 'utf-8');
         this.isDirty = false;
-        console.log(`Saved cache with ${Object.keys(attributesData).length} attributes`);
+        console.debug(`Saved cache with ${Object.keys(attributesData).length} attributes`);
       } catch (error) {
         console.error('Error saving cache:', error);
       }
@@ -133,7 +133,7 @@ export class CacheManager {
     try {
       if (fs.existsSync(this.cacheFilePath)) {
         fs.unlinkSync(this.cacheFilePath);
-        console.log('Cache invalidated');
+        console.debug('Cache invalidated');
       }
       this.isDirty = false;
       return Promise.resolve();

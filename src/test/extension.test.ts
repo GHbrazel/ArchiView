@@ -1,79 +1,88 @@
-import * as assert from 'assert';
+import {describe, it, expect, beforeEach} from 'vitest';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { FilterManager } from '../filterManager';
+import { CSharpParser } from '../csharpParser';
+import { AttributeProvider, AttributeItem } from '../attributeProvider';
+
+// Helper to construct complete AttributeInfo objects for tests
+function makeAttr(name: string, line = 1, column = 0, args = '', targetElement = 'class', targetName = '') {
+	return { fullName: name, name, arguments: args, line, column, targetElement, targetName };
+}
 
 
-suite('Extension Test Suite', () => {
+describe('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+	it('Sample test', () => {
+		expect(-1).toBe([1, 2, 3].indexOf(5));
+		expect(-1).toBe([1, 2, 3].indexOf(0));
 	});
 });
 
-suite('FilterManager Tests', () => {
+describe('FilterManager Tests', () => {
 	let filterManager: FilterManager;
 
-	setup(() => {
+	beforeEach(() => {
 		filterManager = new FilterManager();
 	});
 
-	test('should initialize with no filters', () => {
-		assert.strictEqual(filterManager.hasActiveFilters(), false);
-		assert.strictEqual(filterManager.getSelectedAttributes().size, 0);
+	it('should initialize with no filters', () => {
+		expect(filterManager.hasActiveFilters()).toBe(false);
+		expect(filterManager.getSelectedAttributes().size).toBe(0);
 	});
 
-	test('should add a single attribute filter', () => {
+	it('should add a single attribute filter', () => {
 		filterManager.addAttributeToFilter('Serializable');
-		assert.strictEqual(filterManager.hasActiveFilters(), true);
-		assert.strictEqual(filterManager.isAttributeSelected('Serializable'), true);
+		expect(filterManager.hasActiveFilters()).toBe(true);
+		expect(filterManager.isAttributeSelected('Serializable')).toBe(true);
 	});
 
-	test('should remove an attribute filter', () => {
+	it('should remove an attribute filter', () => {
 		filterManager.addAttributeToFilter('Serializable');
 		filterManager.removeAttributeFromFilter('Serializable');
-		assert.strictEqual(filterManager.hasActiveFilters(), false);
+		expect(filterManager.hasActiveFilters()).toBe(false);
 	});
 
-	test('should toggle attribute selection', () => {
+	it('should toggle attribute selection', () => {
 		filterManager.toggleAttributeInFilter('Required');
-		assert.strictEqual(filterManager.isAttributeSelected('Required'), true);
+		expect(filterManager.isAttributeSelected('Required')).toBe(true);
 		filterManager.toggleAttributeInFilter('Required');
-		assert.strictEqual(filterManager.isAttributeSelected('Required'), false);
+		expect(filterManager.isAttributeSelected('Required')).toBe(false);
 	});
 
-	test('should handle multiple selected attributes', () => {
+	it('should handle multiple selected attributes', () => {
 		filterManager.addAttributeToFilter('Required');
 		filterManager.addAttributeToFilter('Serializable');
 		filterManager.addAttributeToFilter('Obsolete');
 		
 		const selected = filterManager.getSelectedAttributes();
-		assert.strictEqual(selected.size, 3);
-		assert.strictEqual(selected.has('Required'), true);
-		assert.strictEqual(selected.has('Serializable'), true);
-		assert.strictEqual(selected.has('Obsolete'), true);
+		expect(selected.size).toBe(3);
+		expect(selected.has('Required')).toBe(true);
+		expect(selected.has('Serializable')).toBe(true);
+		expect(selected.has('Obsolete')).toBe(true);
 	});
 
-	test('should set selected attributes as a batch', () => {
+	it('should set selected attributes as a batch', () => {
 		filterManager.setSelectedAttributes(['Required', 'Serializable']);
 		
 		const selected = filterManager.getSelectedAttributes();
-		assert.strictEqual(selected.size, 2);
-		assert.strictEqual(selected.has('Required'), true);
-		assert.strictEqual(selected.has('Serializable'), true);
+		expect(selected.size).toBe(2);
+		expect(selected.has('Required')).toBe(true);
+		expect(selected.has('Serializable')).toBe(true);
 	});
 
-	test('should clear all filters', () => {
+	it('should clear all filters', () => {
 		filterManager.addAttributeToFilter('Required');
 		filterManager.addAttributeToFilter('Serializable');
 		filterManager.clearAllFilters();
 		
-		assert.strictEqual(filterManager.hasActiveFilters(), false);
-		assert.strictEqual(filterManager.getSelectedAttributes().size, 0);
+		expect(filterManager.hasActiveFilters()).toBe(false);
+		expect(filterManager.getSelectedAttributes().size).toBe(0);
 	});
 
-	test('should emit change event when filter is modified', (done) => {
+	it('should emit change event when filter is modified', (done) => {
 		let changeCount = 0;
 		filterManager.onFilterChanged(() => {
 			changeCount++;
@@ -81,28 +90,26 @@ suite('FilterManager Tests', () => {
 
 		// Should emit event for first add
 		filterManager.addAttributeToFilter('Required');
-		assert.strictEqual(changeCount, 1);
+		expect(changeCount).toBe(1);
 
 		// Should emit event for subsequent adds
 		filterManager.addAttributeToFilter('Serializable');
-		assert.strictEqual(changeCount, 2);
+		expect(changeCount).toBe(2);
 
 		// Should emit event for removal
 		filterManager.removeAttributeFromFilter('Required');
-		assert.strictEqual(changeCount, 3);
+		expect(changeCount).toBe(3);
 
 		// Should emit event for setSelectedAttributes
 		filterManager.setSelectedAttributes(['Obsolete']);
-		assert.strictEqual(changeCount, 4);
+		expect(changeCount).toBe(4);
 
 		// Should emit event for clear
 		filterManager.clearAllFilters();
-		assert.strictEqual(changeCount, 5);
-
-		done();
+		expect(changeCount).toBe(5);
 	});
 
-	test('should emit change event with current filter state', (done) => {
+	it('should emit change event with current filter state', (done) => {
 		let lastEmittedState: Set<string> = new Set();
 		
 		filterManager.onFilterChanged((change) => {
@@ -110,16 +117,14 @@ suite('FilterManager Tests', () => {
 		});
 
 		filterManager.addAttributeToFilter('Required');
-		assert.strictEqual(lastEmittedState.has('Required'), true);
+		expect(lastEmittedState.has('Required')).toBe(true);
 
 		filterManager.addAttributeToFilter('Serializable');
-		assert.strictEqual(lastEmittedState.has('Serializable'), true);
-		assert.strictEqual(lastEmittedState.size, 2);
-
-		done();
+		expect(lastEmittedState.has('Serializable')).toBe(true);
+		expect(lastEmittedState.size).toBe(2);
 	});
 
-	test('should not emit duplicate change events for same operation', (done) => {
+	it('should not emit duplicate change events for same operation', (done) => {
 		let changeCount = 0;
 		filterManager.onFilterChanged(() => {
 			changeCount++;
@@ -130,12 +135,10 @@ suite('FilterManager Tests', () => {
 
 		// Try adding the same attribute again - should still emit event
 		filterManager.addAttributeToFilter('Required');
-		assert.strictEqual(changeCount, firstCount + 1);
-
-		done();
+		expect(changeCount).toBe(firstCount + 1);
 	});
 
-	test('should only emit one change event when setSelectedAttributes is called', (done) => {
+	it('should only emit one change event when setSelectedAttributes is called', (done) => {
 		let changeCount = 0;
 		filterManager.onFilterChanged(() => {
 			changeCount++;
@@ -143,16 +146,13 @@ suite('FilterManager Tests', () => {
 
 		// setSelectedAttributes should only emit once, not once per attribute
 		filterManager.setSelectedAttributes(['Required', 'Serializable', 'Obsolete']);
-		assert.strictEqual(changeCount, 1);
-
-		done();
+		expect(changeCount).toBe(1);
 	});
 });
 
-suite('AttributeProvider File Change Tests', () => {
-	test('parseFile should clear old entries when file is updated with fewer attributes', () => {
+describe('AttributeProvider File Change Tests', () => {
+	it('parseFile should clear old entries when file is updated with fewer attributes', () => {
 		// This test verifies that when a file with 3 attributes is updated
-		const { CSharpParser } = require('../csharpParser');
 		
 		const code1 = `
 [Serializable]
@@ -169,12 +169,11 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		assert.strictEqual(attrs1.length, 3, 'First code should have 3 attributes');
-		assert.strictEqual(attrs2.length, 1, 'Second code should have 1 attribute');
+		expect(attrs1.length).toBe(3);
+		expect(attrs2.length).toBe(1);
 	});
 
-	test('parseFile should clear old entries when file is updated with more attributes', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('parseFile should clear old entries when file is updated with more attributes', () => {
 		
 		const code1 = `
 [Serializable]
@@ -191,12 +190,11 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		assert.strictEqual(attrs1.length, 1, 'First code should have 1 attribute');
-		assert.strictEqual(attrs2.length, 3, 'Second code should have 3 attributes');
+		expect(attrs1.length).toBe(1);
+		expect(attrs2.length).toBe(3);
 	});
 
-	test('when attributes are removed from file, count should decrease not increase', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('when attributes are removed from file, count should decrease not increase', () => {
 		
 		// Simulate what happens when file is parsed twice
 		const code1 = `
@@ -214,13 +212,12 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(code1);
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
-		
-		assert.strictEqual(attrs1.length, 3);
-		assert.strictEqual(attrs2.length, 1);
+		expect(attrs1.length).toBe(3);
+		expect(attrs2.length).toBe(1);
 	});
 
-	test('when attributes are added to file, count should increase correctly', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('when attributes are added to file, count should increase correctly', () => {
+		// CSharpParser already imported
 		
 		const code1 = `
 [Serializable]
@@ -238,20 +235,20 @@ public class MyClass { }
 		const attrs2 = CSharpParser.parseAttributes(code2);
 
 		// Verify the new attributes are detected
-		assert.strictEqual(attrs1.length, 1);
-		assert.strictEqual(attrs2.length, 3);
-		
+		expect(attrs1.length).toBe(1);
+		expect(attrs2.length).toBe(3);
+
 		const names2 = attrs2.map((a: any) => a.name);
-		assert.deepStrictEqual(names2.sort(), ['Obsolete', 'Required', 'Serializable'].sort());
+		expect(names2.sort()).toEqual(['Obsolete', 'Required', 'Serializable'].sort());
 	});
 
-	test('parseFile should remove all old attributes for a file before adding new ones', () => {
+	it('parseFile should remove all old attributes for a file before adding new ones', () => {
 		// This is a unit test for the parseFile logic
 		// It simulates the scenario: file has [Serializable, Required, Obsolete]
 		// Then is updated to have only [Serializable]
 		// The attributeMap should reflect only the current state, not accumulate
 
-		const { CSharpParser } = require('../csharpParser');
+		// CSharpParser already imported
 		
 		// When parseFile is called twice with same file path and different content:
 		// First call: adds Serializable, Required, Obsolete
@@ -273,25 +270,25 @@ public class MyClass { }
 		const attrs1 = CSharpParser.parseAttributes(initialCode);
 		const attrs2 = CSharpParser.parseAttributes(updatedCode);
 		
-		assert.strictEqual(attrs1.length, 3);
-		assert.strictEqual(attrs2.length, 1);
+		expect(attrs1.length).toBe(3);
+		expect(attrs2.length).toBe(1);
 		
 		// Verify Serializable exists in both
-		assert.strictEqual(attrs1[0].name, 'Serializable');
-		assert.strictEqual(attrs2[0].name, 'Serializable');
+		expect(attrs1[0].name).toBe('Serializable');
+		expect(attrs2[0].name).toBe('Serializable');
 	});
 
-	test('when attributes are removed and file is saved, occurrence count should decrease', () => {
-		const { CSharpParser } = require('../csharpParser');
-		const fs = require('fs');
-		const path = require('path');
+	it('when attributes are removed and file is saved, occurrence count should decrease', () => {
+		// CSharpParser already imported
+		// fs already imported
+		// path already imported
 		
 		// Simulate attribute map behavior
 		// Start with: Attribute 'Serializable' appears 2 times (in two files)
 		const attributeMap = new Map();
 		attributeMap.set('Serializable', [
-			{ file: '/test/file1.cs', attribute: { name: 'Serializable' }, namespace: 'Test' },
-			{ file: '/test/file2.cs', attribute: { name: 'Serializable' }, namespace: 'Test' }
+			{ file: '/test/file1.cs', attribute: makeAttr('Serializable'), namespace: 'Test' },
+			{ file: '/test/file2.cs', attribute: makeAttr('Serializable'), namespace: 'Test' }
 		]);
 		
 		// File 1 is updated: OLD had [Serializable, Required], NEW has just [Required]
@@ -317,21 +314,21 @@ public class MyClass { }
 		}
 		attributeMap.get('Required').push({
 			file: filePath,
-			attribute: { name: 'Required' },
+			attribute: makeAttr('Required'),
 			namespace: 'Test'
 		});
 		
 		const serializableCount = attributeMap.get('Serializable')?.length || 0;
 		const requiredCount = attributeMap.get('Required')?.length || 0;
 		
-		assert.strictEqual(serializableCount, 1, 'Serializable should have 1 occurrence after removing from file1');
-		assert.strictEqual(requiredCount, 1, 'Required should have 1 occurrence in file1');
+		expect(serializableCount).toBe(1);
+		expect(requiredCount).toBe(1);
 	});
 
-	test('when attributes are added and file is saved, occurrence count should increase correctly', () => {
+	it('when attributes are added and file is saved, occurrence count should increase correctly', () => {
 		const attributeMap = new Map();
 		attributeMap.set('Serializable', [
-			{ file: '/test/file1.cs', attribute: { name: 'Serializable' }, namespace: 'Test' }
+			{ file: '/test/file1.cs', attribute: makeAttr('Serializable'), namespace: 'Test' }
 		]);
 		
 		const filePath = '/test/file1.cs';
@@ -359,26 +356,26 @@ public class MyClass { }
 			}
 			attributeMap.get(attrName).push({
 				file: filePath,
-				attribute: { name: attrName },
+				attribute: makeAttr(attrName),
 				namespace: 'Test'
 			});
 		}
 		
-		assert.strictEqual(attributeMap.get('Serializable')?.length || 0, 1);
-		assert.strictEqual(attributeMap.get('Required')?.length || 0, 1);
-		assert.strictEqual(attributeMap.get('Obsolete')?.length || 0, 1);
+		expect(attributeMap.get('Serializable')?.length || 0).toBe(1);
+		expect(attributeMap.get('Required')?.length || 0).toBe(1);
+		expect(attributeMap.get('Obsolete')?.length || 0).toBe(1);
 	});
 
-	test('when file is deleted, all its attributes should be removed from map', () => {
+	it('when file is deleted, all its attributes should be removed from map', () => {
 		// Verify that when a file is deleted, all its attributes are cleaned up
 		
 		const attributeMap = new Map();
 		attributeMap.set('Serializable', [
-			{ file: '/test/file1.cs', attribute: { name: 'Serializable' }, namespace: 'Test' },
-			{ file: '/test/file2.cs', attribute: { name: 'Serializable' }, namespace: 'Test' }
+			{ file: '/test/file1.cs', attribute: makeAttr('Serializable'), namespace: 'Test' },
+			{ file: '/test/file2.cs', attribute: makeAttr('Serializable'), namespace: 'Test' }
 		]);
 		attributeMap.set('Required', [
-			{ file: '/test/file1.cs', attribute: { name: 'Required' }, namespace: 'Test' }
+			{ file: '/test/file1.cs', attribute: makeAttr('Required'), namespace: 'Test' }
 		]);
 		
 		const filePath = '/test/file1.cs';
@@ -398,25 +395,25 @@ public class MyClass { }
 			attributeMap.delete(key);
 		}
 		
-		assert.strictEqual(attributeMap.has('Required'), false);
-		assert.strictEqual(attributeMap.get('Serializable')?.length || 0, 1);
-		assert.strictEqual(attributeMap.get('Serializable')?.[0].file, '/test/file2.cs');
+		expect(attributeMap.has('Required')).toBe(false);
+		expect(attributeMap.get('Serializable')?.length || 0).toBe(1);
+		expect(attributeMap.get('Serializable')?.[0].file).toBe('/test/file2.cs');
 	});
 });
 
-suite('AttributeProvider Tree Expansion Tests', () => {
+describe('AttributeProvider Tree Expansion Tests', () => {
 	let filterManager: FilterManager;
 
-	setup(() => {
+	beforeEach(() => {
 		filterManager = new FilterManager();
 	});
 
-	test('should track node IDs correctly', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should track node IDs correctly', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 
 		// Test node ID generation for different node types
-		const { AttributeItem } = require('../attributeProvider');
+		// AttributeItem already imported
 		
 		const rootNode = new AttributeItem('Test Namespace', vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, 'namespace|Test');
 		const attrNode = new AttributeItem('[Serializable] (2)', vscode.TreeItemCollapsibleState.Collapsed, undefined, undefined, 'attribute|Serializable|Test');
@@ -428,25 +425,25 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const id2 = expansionMgr.getNodeId(attrNode);
 		const id3 = expansionMgr.getNodeId(fileNode);
 
-		assert.strictEqual(typeof id1, 'string');
-		assert.strictEqual(typeof id2, 'string');
-		assert.strictEqual(typeof id3, 'string');
-		assert.notStrictEqual(id1, id2);
-		assert.notStrictEqual(id2, id3);
-		assert.notStrictEqual(id1, id3);
+		expect(typeof id1).toBe('string');
+		expect(typeof id2).toBe('string');
+		expect(typeof id3).toBe('string');
+		expect(id1).not.toBe(id2);
+		expect(id2).not.toBe(id3);
+		expect(id1).not.toBe(id3);
 	});
 
-	test('should initialize with empty expanded nodes set', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should initialize with empty expanded nodes set', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 
 		const expansionMgr = provider.getExpansionManager();
 		// Verify that no nodes are initially expanded
-		assert.strictEqual(expansionMgr.isExpanded('nonexistent-node'), false, 'No nodes should be expanded initially');
+		expect(expansionMgr.isExpanded('nonexistent-node')).toBe(false);
 	});
 
-	test('should handle setTreeView without crashing', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should handle setTreeView without crashing', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 
 		const mockTreeView = {
@@ -454,23 +451,23 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 			onDidCollapseElement: () => ({ dispose: () => {} })
 		};
 
-		assert.doesNotThrow(() => {
+		expect(() => {
 			provider.setTreeView(mockTreeView as any);
-		});
+		}).not.toThrow();
 	});
 
-	test('should preserve expanded state structure when tree is modified', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should preserve expanded state structure when tree is modified', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
-		const { AttributeItem } = require('../attributeProvider');
+		// AttributeItem already imported
 
 		const rootChildren = provider.getChildren();
 		
-		assert.strictEqual(Array.isArray(rootChildren), true);
+		expect(Array.isArray(rootChildren)).toBe(true);
 	});
 
-	test('should handle empty tree gracefully', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should handle empty tree gracefully', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 		
 		// Mock the internal repository to be empty
@@ -478,12 +475,12 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		repo.clearAllData();
 
 		const children = provider.getChildren();
-		assert.strictEqual(Array.isArray(children), true);
-		assert.strictEqual(children.length, 0);
+		expect(Array.isArray(children)).toBe(true);
+		expect(children.length).toBe(0);
 	});
 
-	test('should handle node disappearance gracefully', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should handle node disappearance gracefully', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 
 		// Add some attributes to the repository
@@ -499,19 +496,19 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		repo.setAttributeLocations('Obsolete', attributes);
 
 		const children = provider.getChildren();
-		assert.strictEqual(children.length > 0, true);
+		expect(children.length > 0).toBe(true);
 
 		repo.clearAllData();
 
 		const emptyChildren = provider.getChildren();
-		assert.strictEqual(Array.isArray(emptyChildren), true);
-		assert.strictEqual(emptyChildren.length, 0);
+		expect(Array.isArray(emptyChildren)).toBe(true);
+		expect(emptyChildren.length).toBe(0);
 	});
 
-	test('should maintain consistent node IDs across multiple calls', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should maintain consistent node IDs across multiple calls', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
-		const { AttributeItem } = require('../attributeProvider');
+		// AttributeItem already imported
 
 		const node = new AttributeItem(
 			'[Serializable]',
@@ -526,33 +523,33 @@ suite('AttributeProvider Tree Expansion Tests', () => {
 		const id2 = expansionMgr.getNodeId(node);
 		const id3 = expansionMgr.getNodeId(node);
 
-		assert.strictEqual(id1, id2);
-		assert.strictEqual(id2, id3);
+		expect(id1).toBe(id2);
+		expect(id2).toBe(id3);
 	});
 
-	test('should handle tree structure changes without breaking', () => {
-		const { AttributeProvider } = require('../attributeProvider');
+	it('should handle tree structure changes without breaking', () => {
+		// AttributeProvider already imported
 		const provider = new AttributeProvider(filterManager);
 		const settingsMgr = provider.getSettingsManager();
 
 		// Simulate toggling namespace hierarchy
 		settingsMgr.setNamespaceHierarchyEnabled(true);
 		let children = provider.getChildren();
-		assert.strictEqual(Array.isArray(children), true);
+		expect(Array.isArray(children)).toBe(true);
 
 		// Toggle to flat mode
 		settingsMgr.setNamespaceHierarchyEnabled(false);
 		children = provider.getChildren();
-		assert.strictEqual(Array.isArray(children), true);
+		expect(Array.isArray(children)).toBe(true);
 
 		// Toggle back to hierarchy
 		settingsMgr.setNamespaceHierarchyEnabled(true);
 		children = provider.getChildren();
-		assert.strictEqual(Array.isArray(children), true);
+		expect(Array.isArray(children)).toBe(true);
 	});
 
-        test('should preserve expansion state when attribute count changes (attribute removed)', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should preserve expansion state when attribute count changes (attribute removed)', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -560,47 +557,50 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Setup initial state with attributes
                 const repo = provider.getRepository();
-                repo.setAttributeLocations('Required', [
-                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
-                ]);
-                repo.setAttributeLocations('Key', [
-                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
-                ]);
+				repo.setAttributeLocations('Required', [
+					{ file: '/test/Users.cs', attribute: makeAttr('Required'), namespace: 'Models' }
+				]);
+				repo.setAttributeLocations('Key', [
+					{ file: '/test/Users.cs', attribute: makeAttr('Key'), namespace: 'Models' }
+				]);
                 
                 // Get initial children
                 const initialChildren = provider.getChildren();
-                assert.strictEqual(initialChildren.length >= 1, true, 'Should have at least 1 attribute');
-                
+                expect(initialChildren.length >= 1).toBe(true);
+
                 // Find the Key node by its context
-                const keyNode = initialChildren.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode !== undefined, true, 'Key attribute should exist');
-                
+				const keyNode = initialChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode !== undefined).toBe(true);
+
                 const expansionMgr = provider.getExpansionManager();
-                const keyNodeId = expansionMgr.getNodeId(keyNode);
+				const keyNodeId = expansionMgr.getNodeId(keyNode!);
                 
                 // Simulate user expanding the Key attribute
                 expansionMgr.markNodeAsExpanded(keyNodeId);
-                assert.strictEqual(expansionMgr.isExpanded(keyNodeId), true, 'Key should be in expanded state');
-                
-                repo.removeLocationsFromFile('Required', '/test/Users.cs');
+                expect(expansionMgr.isExpanded(keyNodeId)).toBe(true);
+
+                // Remove the Required attribute only, leaving Key present
+                repo.setAttributeLocations('Required', []);
                 
                 // Get children after attribute removal
                 const updatedChildren = provider.getChildren();
                 
                 // Find the Key node in updated children by context
-                const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
-                assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist after attribute removal');
-                
-                const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode);
-                assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable (both should be "Key")');
-                
-                assert.strictEqual(expansionMgr.isExpanded(updatedKeyNodeId), true, 'Expanded state should be preserved');
-                
-                assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node should be marked as Expanded');
+				const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
+				expect(updatedKeyNode).toBeDefined();
+                expect(updatedKeyNode !== undefined).toBe(true);
+
+				const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode!);
+                expect(updatedKeyNodeId).toBe(keyNodeId);
+
+                expect(expansionMgr.isExpanded(updatedKeyNodeId)).toBe(true);
+
+                expect(updatedKeyNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
         });
 
-        test('should preserve expansion state when attribute count changes (attribute added)', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should preserve expansion state when attribute count changes (attribute added)', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -608,40 +608,42 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Setup initial state with one attribute
                 const repo = provider.getRepository();
-                repo.setAttributeLocations('Key', [
-                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
-                ]);
+				repo.setAttributeLocations('Key', [
+					{ file: '/test/Users.cs', attribute: makeAttr('Key'), namespace: 'Models' }
+				]);
                 
                 // Get initial node and expand it
                 const initialChildren = provider.getChildren();
-                const keyNode = initialChildren.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode !== undefined, true, 'Key node should exist initially');
+				const keyNode = initialChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode !== undefined).toBe(true);
                 
                 const expansionMgr = provider.getExpansionManager();
-                const keyNodeId = expansionMgr.getNodeId(keyNode);
+				const keyNodeId = expansionMgr.getNodeId(keyNode!);
                 
                 expansionMgr.markNodeAsExpanded(keyNodeId);
                 
                 // Simulate file save that adds the Required attribute
-                repo.setAttributeLocations('Required', [
-                        { file: '/test/Users.cs', attribute: { fullName: 'Required', name: 'Required' }, namespace: 'Models' }
-                ]);
+				repo.setAttributeLocations('Required', [
+					{ file: '/test/Users.cs', attribute: makeAttr('Required'), namespace: 'Models' }
+				]);
                 
                 // Get updated children
                 const updatedChildren = provider.getChildren();
                 
                 // Find Key node
-                const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
-                assert.strictEqual(updatedKeyNode !== undefined, true, 'Key node should still exist');
+				const updatedKeyNode = updatedChildren.find((n: any) => n.context === 'Key');
+				expect(updatedKeyNode).toBeDefined();
+                expect(updatedKeyNode !== undefined).toBe(true);
                 
-                const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode);
-                assert.strictEqual(updatedKeyNodeId, keyNodeId, 'Node ID should remain stable');
-                assert.strictEqual(expansionMgr.isExpanded(updatedKeyNodeId), true, 'Expansion state preserved');
-                assert.strictEqual(updatedKeyNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Node marked as Expanded');
+				const updatedKeyNodeId = expansionMgr.getNodeId(updatedKeyNode!);
+                expect(updatedKeyNodeId).toBe(keyNodeId);
+                expect(expansionMgr.isExpanded(updatedKeyNodeId)).toBe(true);
+                expect(updatedKeyNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
         });
 
-        test('should update counts when attributes are added or removed', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should update counts when attributes are added or removed', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -651,37 +653,40 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Initial state: 2 instances of Key
                 repo.setAttributeLocations('Key', [
-                        { file: '/test/Users.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
-                        { file: '/test/Product.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                        { file: '/test/Users.cs', attribute: makeAttr('Key'), namespace: 'Models' },
+                        { file: '/test/Product.cs', attribute: makeAttr('Key'), namespace: 'Models' }
                 ]);
                 
                 let children = provider.getChildren();
-                let keyNode = children.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode!.label.includes('(2)'), true, 'Should show 2 instances');
+				let keyNode = children.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode!.label.includes('(2)')).toBe(true);
                 
                 // Remove one instance
                 const locations = repo.getAttributeLocations('Key')!;
                 locations.splice(0, 1);
                 
                 children = provider.getChildren();
-                keyNode = children.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode!.label.includes('(1)'), true, 'Should show 1 instance after removal');
+				keyNode = children.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode!.label.includes('(1)')).toBe(true);
                 
                 // Add two more instances to get 3
                 const currentLocations = repo.getAttributeLocations('Key') || [];
                 repo.setAttributeLocations('Key', [
                         ...currentLocations,
-                        { file: '/test/Entity.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
-                        { file: '/test/Model.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
+                        { file: '/test/Entity.cs', attribute: makeAttr('Key'), namespace: 'Models' },
+                        { file: '/test/Model.cs', attribute: makeAttr('Key'), namespace: 'Models' }
                 ]);
                 
                 children = provider.getChildren();
-                keyNode = children.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode!.label.includes('(3)'), true, 'Should show 3 instances after additions');
+				keyNode = children.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode!.label.includes('(3)')).toBe(true);
         });
 
-        test('should preserve file node expansion in flat mode when counts change', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should preserve file node expansion in flat mode when counts change', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -698,24 +703,26 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get the Key attribute node
                 const rootChildren = provider.getChildren();
-                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
-                assert.strictEqual(keyNode !== undefined, true, 'Key node should exist');
+				const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
+                expect(keyNode !== undefined).toBe(true);
                 
                 // Get file children for Key
                 const fileChildren = provider.getChildren(keyNode);
-                assert.strictEqual(fileChildren.length, 2, 'Should have 2 files with Key');
+                expect(fileChildren.length).toBe(2);
                 
                 // Find Users.cs file node
-                const usersFileNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
-                assert.strictEqual(usersFileNode !== undefined, true, 'Users.cs should exist');
+				const usersFileNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersFileNode).toBeDefined();
+                expect(usersFileNode !== undefined).toBe(true);
                 
                 const expansionMgr = provider.getExpansionManager();
-                const usersFileNodeId = expansionMgr.getNodeId(usersFileNode);
-                assert.strictEqual(usersFileNodeId.includes('/test/Users.cs'), true, 'File node ID should be based on file path');
+				const usersFileNodeId = expansionMgr.getNodeId(usersFileNode!);
+                expect(usersFileNodeId.includes('/test/Users.cs')).toBe(true);
                 
                 // Simulate user expanding the file node
                 expansionMgr.markNodeAsExpanded(usersFileNodeId);
-                assert.strictEqual(expansionMgr.isExpanded(usersFileNodeId), true, 'File node should be marked as expanded');
+                expect(expansionMgr.isExpanded(usersFileNodeId)).toBe(true);
                 
                 // Simulate attribute addition in different file
                 const currentLocations = repo.getAttributeLocations('Key') || [];
@@ -728,20 +735,20 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get updated children
                 const updatedFileChildren = provider.getChildren(keyNode);
-                assert.strictEqual(updatedFileChildren.length, 3, 'Should have 3 files now');
+                expect(updatedFileChildren.length).toBe(3);
                 
                 // Find Users.cs in updated list
-                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
-                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
+				const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(updatedUsersNode).toBeDefined();
                 
-                const updatedUsersNodeId = expansionMgr.getNodeId(updatedUsersNode);
-                assert.strictEqual(updatedUsersNodeId, usersFileNodeId, 'File node ID should remain stable');
-                assert.strictEqual(expansionMgr.isExpanded(updatedUsersNodeId), true, 'Expanded state should be preserved');
-                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'File node should be marked as Expanded');
+				const updatedUsersNodeId = expansionMgr.getNodeId(updatedUsersNode!);
+                expect(updatedUsersNodeId).toBe(usersFileNodeId);
+                expect(expansionMgr.isExpanded(updatedUsersNodeId)).toBe(true);
+                expect(updatedUsersNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
         });
 
-        test('should preserve file node expansion in hierarchy mode', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should preserve file node expansion in hierarchy mode', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set hierarchy mode
                 const settingsMgr = provider.getSettingsManager();
@@ -757,28 +764,31 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get root children (namespaces)
                 const rootChildren = provider.getChildren();
-                assert.strictEqual(rootChildren.length >= 1, true, 'Should have at least 1 namespace');
+                expect(rootChildren.length).toBeGreaterThanOrEqual(1);
                 
                 // Find Models namespace
-                const modelsNode = rootChildren.find((n: any) => n.context === 'namespace|MyProject');
-                assert.strictEqual(modelsNode !== undefined, true, 'Models namespace should exist');
+				const modelsNode = rootChildren.find((n: any) => n.context === 'namespace|MyProject');
+				expect(modelsNode).toBeDefined();
+                expect(modelsNode !== undefined).toBe(true);
                 
                 // Get attributes under Models
                 const attributeChildren = provider.getChildren(modelsNode);
-                assert.strictEqual(attributeChildren.length >= 1, true, 'Should have at least 1 attribute under Models');
+                expect(attributeChildren.length).toBeGreaterThanOrEqual(1);
                 
                 // Find Key attribute
-                const keyAttrNode = attributeChildren.find((n: any) => n.context?.startsWith('attribute|Key'));
-                assert.strictEqual(keyAttrNode !== undefined, true, 'Key attribute should exist');
+				const keyAttrNode = attributeChildren.find((n: any) => n.context?.startsWith('attribute|Key'));
+				expect(keyAttrNode).toBeDefined();
+                expect(keyAttrNode !== undefined).toBe(true);
                 
                 // Get files under Key attribute
                 const fileChildren = provider.getChildren(keyAttrNode);
-                assert.strictEqual(fileChildren.length, 2, 'Should have 2 files');
+                expect(fileChildren.length).toBe(2);
                 
                 // Find and expand Users.cs
-                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersNode).toBeDefined();
                 const expansionMgr = provider.getExpansionManager();
-                const usersNodeId = expansionMgr.getNodeId(usersNode);
+				const usersNodeId = expansionMgr.getNodeId(usersNode!);
                 expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Add new attribute in same namespace
@@ -788,15 +798,15 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get updated files - Users.cs should still be expanded
                 const updatedFileChildren = provider.getChildren(keyAttrNode);
-                const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+				const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(updatedUsersNode).toBeDefined();
                 
-                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
-                assert.strictEqual(expansionMgr.isExpanded(usersNodeId), true, 'Expansion state preserved');
-                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
+                expect(expansionMgr.isExpanded(usersNodeId)).toBe(true);
+                expect(updatedUsersNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
         });
 
-        test('should remove file nodes when they have no more occurrences', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should remove file nodes when they have no more occurrences', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -811,15 +821,17 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 ]);
                 
                 const rootChildren = provider.getChildren();
-                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
                 
                 let fileChildren = provider.getChildren(keyNode);
-                assert.strictEqual(fileChildren.length, 2, 'Initially 2 files');
+                expect(fileChildren.length).toBe(2);
                 
                 // Expand Users.cs
-                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersNode).toBeDefined();
                 const expansionMgr = provider.getExpansionManager();
-                const usersNodeId = expansionMgr.getNodeId(usersNode);
+				const usersNodeId = expansionMgr.getNodeId(usersNode!);
                 expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Remove all occurrences from Users.cs
@@ -829,15 +841,15 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get updated file children
                 fileChildren = provider.getChildren(keyNode);
-                assert.strictEqual(fileChildren.length, 1, 'Should now have only 1 file');
-                
+                expect(fileChildren.length).toBe(1);
+
                 // Users.cs should not be in the list
-                const usersStillThere = fileChildren.find((n: any) => n.file === '/test/Users.cs');
-                assert.strictEqual(usersStillThere, undefined, 'Users.cs should be removed when it has no occurrences');
+				const usersStillThere = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersStillThere).toBeUndefined();
         });
 
-        test('should expand file node and show child occurrences', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should expand file node and show child occurrences', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -853,27 +865,29 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get Key attribute node
                 const rootChildren = provider.getChildren();
-                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
                 
                 // Get file children
                 const fileChildren = provider.getChildren(keyNode);
-                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersNode).toBeDefined();
                 
                 // Expand the file node
                 const expansionMgr = provider.getExpansionManager();
-                const usersNodeId = expansionMgr.getNodeId(usersNode);
+				const usersNodeId = expansionMgr.getNodeId(usersNode!);
                 expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Get the occurrences (children of file node)
                 const occurrenceChildren = provider.getChildren(usersNode);
                 
-                assert.strictEqual(occurrenceChildren.length, 2, 'Should have 2 occurrences in Users.cs');
-                assert.strictEqual(occurrenceChildren[0].line, 5, 'First occurrence at line 5');
-                assert.strictEqual(occurrenceChildren[1].line, 10, 'Second occurrence at line 10');
+                expect(occurrenceChildren.length).toBe(2);
+                expect(occurrenceChildren[0].line).toBe(5);
+                expect(occurrenceChildren[1].line).toBe(10);
         });
 
-        test('should preserve file node expansion when other attributes are added', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should preserve file node expansion when other attributes are added', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -888,12 +902,14 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 
                 // Get and expand Users.cs under Key
                 const rootChildren = provider.getChildren();
-                const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				const keyNode = rootChildren.find((n: any) => n.context === 'Key');
+				expect(keyNode).toBeDefined();
                 const fileChildren = provider.getChildren(keyNode);
-                const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
+				expect(usersNode).toBeDefined();
                 
                 const expansionMgr = provider.getExpansionManager();
-                const usersNodeId = expansionMgr.getNodeId(usersNode);
+				const usersNodeId = expansionMgr.getNodeId(usersNode!);
                 expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Now add a different attribute to the same file
@@ -906,13 +922,13 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const updatedFileChildren = provider.getChildren(updatedKeyNode);
                 const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
-                assert.strictEqual(updatedUsersNode !== undefined, true, 'Users.cs should still exist');
-                assert.strictEqual(expansionMgr.isExpanded(usersNodeId), true, 'Expansion state preserved');
-                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Should be marked as Expanded');
+                expect(updatedUsersNode !== undefined).toBe(true);
+                expect(expansionMgr.isExpanded(usersNodeId)).toBe(true);
+                expect(updatedUsersNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
         });
 
-        test('should have correct file node ID format', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should have correct file node ID format', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -930,16 +946,16 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 
                 const expansionMgr = provider.getExpansionManager();
-                const nodeId = expansionMgr.getNodeId(usersNode);
+				const nodeId = expansionMgr.getNodeId(usersNode!);
                 
                 // File node ID should have format: file:path:attr:attributeName
-                assert.strictEqual(nodeId.startsWith('file:'), true, 'File node ID should start with "file:"');
-                assert.strictEqual(nodeId.includes('Users.cs'), true, 'File node ID should contain filename');
-                assert.strictEqual(nodeId.includes(':attr:Key'), true, 'File node ID should include attribute name');
+                expect(nodeId.startsWith('file:')).toBe(true);
+                expect(nodeId.includes('Users.cs')).toBe(true);
+                expect(nodeId.includes(':attr:Key')).toBe(true);
         });
 
-        test('should handle multiple files with same attribute expanded/collapsed independently', () => {
-                const provider = new (require('../attributeProvider').AttributeProvider)(filterManager);
+        it('should handle multiple files with same attribute expanded/collapsed independently', () => {
+                const provider = new AttributeProvider(filterManager);
                 
                 // Set flat mode
                 const settingsMgr = provider.getSettingsManager();
@@ -960,23 +976,25 @@ suite('AttributeProvider Tree Expansion Tests', () => {
                 // Expand only Users.cs
                 const usersNode = fileChildren.find((n: any) => n.file === '/test/Users.cs');
                 const expansionMgr = provider.getExpansionManager();
-                const usersNodeId = expansionMgr.getNodeId(usersNode);
+				const usersNodeId = expansionMgr.getNodeId(usersNode!);
                 expansionMgr.markNodeAsExpanded(usersNodeId);
                 
                 // Get updated file children
                 const updatedFileChildren = provider.getChildren(keyNode);
                 const updatedUsersNode = updatedFileChildren.find((n: any) => n.file === '/test/Users.cs');
                 const updatedProductNode = updatedFileChildren.find((n: any) => n.file === '/test/Product.cs');
+                expect(updatedUsersNode).toBeDefined();
+                expect(updatedProductNode).toBeDefined();
                 
                 // Users should be expanded, Product collapsed
-                assert.strictEqual(updatedUsersNode.collapsibleState, vscode.TreeItemCollapsibleState.Expanded, 'Users should be Expanded');
-                assert.strictEqual(updatedProductNode.collapsibleState, vscode.TreeItemCollapsibleState.Collapsed, 'Product should be Collapsed');
+                expect(updatedUsersNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Expanded);
+                expect(updatedProductNode!.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Collapsed);
         });
 });
 
-suite('AttributeProvider Attribute File sorting tests', () => {
-	test('should sort files alphabetically under attribute - flat mode', () => {
-		const provider = new (require('../attributeProvider').AttributeProvider)(FilterManager);
+describe('AttributeProvider Attribute File sorting tests', () => {
+	it('should sort files alphabetically under attribute - flat mode', () => {
+		const provider = new AttributeProvider(new FilterManager());
 		
 		// Set flat mode
 		const settingsMgr = provider.getSettingsManager();
@@ -985,23 +1003,22 @@ suite('AttributeProvider Attribute File sorting tests', () => {
 		
 		// Setup: Key attribute in 3 files
 		repo.setAttributeLocations('Key', [
-			{ file: '/test/Zeta.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
-			{ file: '/test/Alpha.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' },
-			{ file: '/test/Middle.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'Models' }
-		]);
+                        { file: '/test/Zeta.cs', attribute: makeAttr('Key'), namespace: 'Models' },
+                        { file: '/test/Alpha.cs', attribute: makeAttr('Key'), namespace: 'Models' },
+                        { file: '/test/Middle.cs', attribute: makeAttr('Key'), namespace: 'Models' }]);
 		
 		const rootChildren = provider.getChildren();
 		const keyNode = rootChildren.find((n: any) => n.context === 'Key');
 		const fileChildren = provider.getChildren(keyNode);
 		
-		assert.strictEqual(fileChildren.length, 3, 'Should have 3 files');
-		assert.strictEqual(fileChildren[0].file, '/test/Alpha.cs', 'First file should be Alpha.cs');
-		assert.strictEqual(fileChildren[1].file, '/test/Middle.cs', 'Second file should be Middle.cs');
-		assert.strictEqual(fileChildren[2].file, '/test/Zeta.cs', 'Third file should be Zeta.cs');
+		expect(fileChildren.length).toBe(3);
+		expect(fileChildren[0].file).toBe('/test/Alpha.cs');
+		expect(fileChildren[1].file).toBe('/test/Middle.cs');
+		expect(fileChildren[2].file).toBe('/test/Zeta.cs');
 	});
 
-	test('should sort files alphabetically under attribute - hierarchy mode', () => {
-		const provider = new (require('../attributeProvider').AttributeProvider)(FilterManager);
+	it('should sort files alphabetically under attribute - hierarchy mode', () => {
+		const provider = new AttributeProvider(new FilterManager());
 		
 		// Set hierarchy mode
 		const settingsMgr = provider.getSettingsManager();
@@ -1010,10 +1027,9 @@ suite('AttributeProvider Attribute File sorting tests', () => {
 		
 		// Setup: Key attribute in 3 files under same namespace
 		repo.setAttributeLocations('Key', [
-			{ file: '/test/Zeta.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' },
-			{ file: '/test/Alpha.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' },
-			{ file: '/test/Middle.cs', attribute: { fullName: 'Key', name: 'Key' }, namespace: 'MyProject.Models' }
-		]);
+                        { file: '/test/Zeta.cs', attribute: makeAttr('Key'), namespace: 'MyProject.Models' },
+                        { file: '/test/Alpha.cs', attribute: makeAttr('Key'), namespace: 'MyProject.Models' },
+                        { file: '/test/Middle.cs', attribute: makeAttr('Key'), namespace: 'MyProject.Models' }]);
 		
 		const rootChildren = provider.getChildren();
 		const modelsNode = rootChildren.find((n: any) => n.context === 'namespace|MyProject');
@@ -1021,16 +1037,16 @@ suite('AttributeProvider Attribute File sorting tests', () => {
 		const keyNode = attributeChildren[0];
 		const fileChildren = provider.getChildren(keyNode);
 		
-		assert.strictEqual(fileChildren.length, 3, 'Should have 3 files');
-		assert.strictEqual(fileChildren[0].file, '/test/Alpha.cs', 'First file should be Alpha.cs');
-		assert.strictEqual(fileChildren[1].file, '/test/Middle.cs', 'Second file should be Middle.cs');
-		assert.strictEqual(fileChildren[2].file, '/test/Zeta.cs', 'Third file should be Zeta.cs');
+		expect(fileChildren.length).toBe(3);
+		expect(fileChildren[0].file).toBe('/test/Alpha.cs');
+		expect(fileChildren[1].file).toBe('/test/Middle.cs');
+		expect(fileChildren[2].file).toBe('/test/Zeta.cs');
 	});
 });
 
-suite('CSharpParser Multi-Line Attribute Tests', () => {
-	test('should parse multiple stacked attributes on enum', () => {
-		const { CSharpParser } = require('../csharpParser');
+describe('CSharpParser Multi-Line Attribute Tests', () => {
+	it('should parse multiple stacked attributes on enum', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Serializable]
@@ -1039,15 +1055,15 @@ public enum UserRole { }
 		`;
 		
 		const attrs = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attrs.length, 2, 'Should find 2 attributes');
-		assert.strictEqual(attrs[0].name, 'Serializable', 'First attribute should be Serializable');
-		assert.strictEqual(attrs[0].targetElement, 'enum', 'Serializable should target enum');
-		assert.strictEqual(attrs[1].name, 'Flags', 'Second attribute should be Flags');
-		assert.strictEqual(attrs[1].targetElement, 'enum', 'Flags should target enum');
+		expect(attrs.length).toBe(2);
+		expect(attrs[0].name).toBe('Serializable');
+		expect(attrs[0].targetElement).toBe('enum');
+		expect(attrs[1].name).toBe('Flags');
+		expect(attrs[1].targetElement).toBe('enum');
 	});
 
-	test('should parse attributes on class with namespaced attributes', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse attributes on class with namespaced attributes', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Serializable]
@@ -1057,14 +1073,14 @@ public class User { }
 		`;
 		
 		const attrs = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attrs.length, 3, 'Should find 3 attributes');
-		assert.strictEqual(attrs[0].targetElement, 'class', 'Serializable should target class');
-		assert.strictEqual(attrs[1].targetElement, 'class', 'Repository should target class');
-		assert.strictEqual(attrs[2].targetElement, 'class', 'ApiEndpoint should target class');
+		expect(attrs.length).toBe(3);
+		expect(attrs[0].targetElement).toBe('class');
+		expect(attrs[1].targetElement).toBe('class');
+		expect(attrs[2].targetElement).toBe('class');
 	});
 
-	test('should parse attributes on enum members', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse attributes on enum members', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Serializable]
@@ -1081,13 +1097,13 @@ public enum UserRole
 		
 		const attrs = CSharpParser.parseAttributes(code);
 		const enumMemberAttrs = attrs.filter((a: any) => a.targetElement === 'enumMember');
-		assert.strictEqual(enumMemberAttrs.length >= 2, true, 'Should find at least 2 enum member attributes');
-		assert.strictEqual(enumMemberAttrs[0].fullName, 'System.ComponentModel.DataAnnotations.Display', 'Should parse Display attribute');
-		assert.strictEqual(enumMemberAttrs[0].targetName, 'Guest', 'Should identify Guest as target');
+		expect(enumMemberAttrs.length).toBeGreaterThanOrEqual(2);
+		expect(enumMemberAttrs[0].fullName).toBe('System.ComponentModel.DataAnnotations.Display');
+		expect(enumMemberAttrs[0].targetName).toBe('Guest');
 	});
 
-	test('should parse multiple attributes on property', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse multiple attributes on property', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Required]
@@ -1097,17 +1113,17 @@ public string Name { get; set; } = string.Empty;
 		`;
 		
 		const attrs = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attrs.length, 3, 'Should find 3 attributes');
-		assert.strictEqual(attrs[0].targetElement, 'property', 'Required should target property');
-		assert.strictEqual(attrs[0].targetName, 'Name', 'Should identify Name as target property');
-		assert.strictEqual(attrs[1].name, 'StringLength', 'Second attribute should be StringLength');
-		assert.strictEqual(attrs[1].targetElement, 'property', 'StringLength should target property');
-		assert.strictEqual(attrs[2].name, 'Validate', 'Third attribute should be Validate');
-		assert.strictEqual(attrs[2].targetElement, 'property', 'Validate should target property');
+		expect(attrs.length).toBe(3);
+		expect(attrs[0].targetElement).toBe('property');
+		expect(attrs[0].targetName).toBe('Name');
+		expect(attrs[1].name).toBe('StringLength');
+		expect(attrs[1].targetElement).toBe('property');
+		expect(attrs[2].name).toBe('Validate');
+		expect(attrs[2].targetElement).toBe('property');
 	});
 
-	test('should parse method attributes with return type target', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse method attributes with return type target', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [ApiEndpoint("/api/users/register", "POST")]
@@ -1117,15 +1133,15 @@ public User RegisterUser(string email, string username) { }
 		`;
 		
 		const attrs = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attrs.length >= 2, true, 'Should find at least 2 attributes');
+		expect(attrs.length).toBeGreaterThanOrEqual(2);
 		const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
-		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete attribute');
-		assert.strictEqual(obsoleteAttr.targetElement, 'method', 'Obsolete should target method');
-		assert.strictEqual(obsoleteAttr.targetName, 'RegisterUser', 'Should identify RegisterUser as target');
+		expect(obsoleteAttr).toBeDefined();
+		expect(obsoleteAttr!.targetElement).toBe('method');
+		expect(obsoleteAttr!.targetName).toBe('RegisterUser');
 	});
 
-	test('should parse attributes separated by pragmas', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse attributes separated by pragmas', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [ApiEndpoint("/api/users/validate", "POST")]
@@ -1137,12 +1153,12 @@ public bool ValidateUser(string username) { }
 		
 		const attrs = CSharpParser.parseAttributes(code);
 		const apiAttr = attrs.find((a: any) => a.name === 'ApiEndpoint');
-		assert.strictEqual(apiAttr !== undefined, true, 'Should find ApiEndpoint attribute');
-		assert.strictEqual(apiAttr.targetElement !== 'unknown', true, 'ApiEndpoint should have known target');
+		expect(apiAttr).toBeDefined();
+		expect(apiAttr!.targetElement !== 'unknown').toBe(true);
 	});
 
-	test('should parse parameter attributes with validation', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse parameter attributes with validation', () => {
+		// CSharpParser already imported
 		
 		const code = `
 public User RegisterUser(
@@ -1152,15 +1168,15 @@ public User RegisterUser(
 		`;
 		
 		const attrs = CSharpParser.parseAttributes(code);
-		assert.strictEqual(attrs.length >= 2, true, 'Should find parameter attributes');
+		expect(attrs.length).toBeGreaterThanOrEqual(2);
 		const validateAttrs = attrs.filter((a: any) => a.name === 'Validate');
-		assert.strictEqual(validateAttrs.length >= 2, true, 'Should find at least 2 Validate attributes');
-		assert.strictEqual(validateAttrs[0].parameterName, 'email', 'First should be for email parameter');
-		assert.strictEqual(validateAttrs[1].parameterName, 'username', 'Second should be for username parameter');
+		expect(validateAttrs.length).toBeGreaterThanOrEqual(2);
+		expect(validateAttrs[0].parameterName).toBe('email');
+		expect(validateAttrs[1].parameterName).toBe('username');
 	});
 
-	test('should parse Obsolete attribute on interface method', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse Obsolete attribute on interface method', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Serializable]
@@ -1177,13 +1193,13 @@ public interface IPaymentService
 		
 		const attrs = CSharpParser.parseAttributes(code);
 		const obsoleteAttr = attrs.find((a: any) => a.name === 'Obsolete');
-		assert.strictEqual(obsoleteAttr !== undefined, true, 'Should find Obsolete attribute');
-		assert.strictEqual(obsoleteAttr.targetElement, 'method', 'Obsolete should target the method');
-		assert.strictEqual(obsoleteAttr.targetName, 'ProcessPayment', 'Should identify ProcessPayment as target');
+		expect(obsoleteAttr).toBeDefined();
+		expect(obsoleteAttr!.targetElement).toBe('method');
+		expect(obsoleteAttr!.targetName).toBe('ProcessPayment');
 	});
 
-	test('should parse Obsolete attribute on interface declaration', () => {
-		const { CSharpParser } = require('../csharpParser');
+	it('should parse Obsolete attribute on interface declaration', () => {
+		// CSharpParser already imported
 		
 		const code = `
 [Obsolete("Use IArticleServiceV2 instead")]
@@ -1199,15 +1215,14 @@ public interface IArticleService
 		
 		const attrs = CSharpParser.parseAttributes(code);
 		const interfaceObsoleteAttrs = attrs.filter((a: any) => a.name === 'Obsolete');
-		assert.strictEqual(interfaceObsoleteAttrs.length >= 2, true, 'Should find at least 2 Obsolete attributes');
+		expect(interfaceObsoleteAttrs.length).toBeGreaterThanOrEqual(2);
 		
 		const interfaceObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'interface');
-		assert.strictEqual(interfaceObsolete !== undefined, true, 'Should find Obsolete on interface');
-		assert.strictEqual(interfaceObsolete.targetName, 'IArticleService', 'Should identify IArticleService as target');
-		
+		expect(interfaceObsolete).toBeDefined();
+		expect(interfaceObsolete!.targetName).toBe('IArticleService');
 		const methodObsolete = interfaceObsoleteAttrs.find((a: any) => a.targetElement === 'method');
-		assert.strictEqual(methodObsolete !== undefined, true, 'Should find Obsolete on method');
-		assert.strictEqual(methodObsolete.targetName, 'SearchArticles', 'Should identify SearchArticles as target');
+		expect(methodObsolete).toBeDefined();
+		expect(methodObsolete!.targetName).toBe('SearchArticles');
 	});
 });
 

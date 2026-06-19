@@ -94,14 +94,14 @@ function registerToggleNamespaceHierarchy() {
 
 		if (selected !== undefined && selected.value !== currentState) {
 			await config.update('showNamespaceHierarchy', selected.value, vscode.ConfigurationTarget.Global);
-			console.log(`View mode switched to ${selected.value ? 'hierarchical' : 'flat'}`);
+			console.debug(`View mode switched to ${selected.value ? 'hierarchical' : 'flat'}`);
 		}
 	});
 }
 
 function registerRefresh(attributeProvider: AttributeProvider) {
 	return vscode.commands.registerCommand('MetaLens.refresh', () => {
-		console.log('Refreshing attributes...');
+		console.debug('Refreshing attributes...');
 		attributeProvider.refresh();
 	});
 }
@@ -113,5 +113,5 @@ function registerReportIssue() {
 }
 
 export function deactivate() {
-	console.log('Your extension "MetaLens" is now inactive. Goodbye!');
+	console.debug('Your extension "MetaLens" is now inactive. Goodbye!');
 }
