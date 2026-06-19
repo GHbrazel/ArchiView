@@ -1,7 +1,5 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { FilterManager } from '../filterManager';
 import { CSharpParser } from '../csharpParser';
 import { AttributeProvider, AttributeItem } from '../attributeProvider';
